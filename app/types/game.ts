@@ -32,10 +32,32 @@ export type ChatMessage = {
 
 export type ActionLog = {
   id: string;
+  kind: "action" | "event";
   turn: number;
+  day: number;
+  event: string;
   label: string;
   detail: string;
+  result: string;
+  why: string;
+  learning: string;
+  changes: MetricChange[];
   tags: ScoreKey[];
+};
+
+export type MetricChange = {
+  key: keyof Metrics;
+  before: number;
+  after: number;
+};
+
+export type ActionResult = {
+  title: string;
+  occurred: string;
+  why: string;
+  learning: string;
+  tags: ScoreKey[];
+  changes: MetricChange[];
 };
 
 export type GameState = {

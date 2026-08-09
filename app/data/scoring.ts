@@ -22,14 +22,14 @@ export const scoringRules: Record<ScoreKey, Rule[]> = {
   risk: [
     { points: 25, when: s => s.flags.apiRiskKnown },
     { points: 30, when: s => s.flags.apiRiskMitigated },
-    { points: 15, when: s => s.logs.some(l => l.label.includes("リスクを整理")) },
+    { points: 15, when: s => s.logs.some(l => l.label === "リスク対応を整理する") },
     { points: 10, when: s => s.turn >= 3 && s.flags.apiRiskKnown },
     { points: 10, when: s => s.releaseDecision === "staged" },
   ],
   schedule: [
     { points: 20, when: s => s.flags.juniorProgressChecked },
     { points: 20, when: s => s.flags.delayRecovered },
-    { points: 15, when: s => s.logs.filter(l => l.label.includes("スケジュールを確認")).length >= 2 },
+    { points: 15, when: s => s.logs.filter(l => l.label === "スケジュールを点検する").length >= 2 },
     { points: 20, when: s => s.flags.impactAnalysisDone },
     { points: 15, when: s => ["trim", "staged", "negotiate"].includes(s.releaseDecision || "") },
   ],
