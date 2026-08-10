@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ActionConfirmDialog, type ActionConfirmation } from "./ActionConfirmDialog";
-import { ActionDetail } from "./ActionDetail";
-import { ActionList } from "./ActionList";
-import { ActionResultModal } from "./ActionResultModal";
+import { ActionDetailModal } from "./ActionDetailModal";
+import { DecisionStep } from "./DecisionStep";
 import { FlowSteps, type FlowStep } from "./FlowSteps";
-import { KnownInformation } from "./KnownInformation";
-import { ProjectMetrics } from "./ProjectMetrics";
 import { ProjectLog } from "./ProjectLog";
+import { ResultStep } from "./ResultStep";
+import { SituationStep } from "./SituationStep";
 import { characters } from "../data/characters";
 import { decisionResultCopy, learningByArea, pmActions, type PMActionDefinition } from "../data/actions";
 import { buildFeedback } from "../data/feedback";
@@ -18,7 +17,6 @@ import { conversationEngine } from "../lib/conversationEngine";
 import type { ActionLog, ActionResult, CharacterId, Effect, GameFlags, GameState, MetricChange, Metrics, ScoreKey } from "../types/game";
 
 type PendingAction =
-  | { kind: "pm"; id: PMActionDefinition["id"]; confirmation: ActionConfirmation }
   | { kind: "topic"; id: string; confirmation: ActionConfirmation }
   | { kind: "request"; id: string; confirmation: ActionConfirmation }
   | { kind: "release"; id: string; confirmation: ActionConfirmation };
@@ -70,6 +68,7 @@ export default function PMSimulator() {
   const [actionResult, setActionResult] = useState<ActionResult | null>(null);
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [selectedActionId, setSelectedActionId] = useState<PMActionDefinition["id"]>("hearing");
+  const [actionDetailOpen, setActionDetailOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [recentChanges, setRecentChanges] = useState<MetricChange[]>([]);
   const [showScenarioChoices, setShowScenarioChoices] = useState(false);
@@ -85,6 +84,8 @@ export default function PMSimulator() {
   const decisionPending = (game.turn === 2 && !game.requestDecision) || (game.turn === 4 && !game.releaseDecision);
   const explorationDisabled = Boolean(executingId) || Boolean(actionResult) || game.actionsLeft === 0 || (decisionPending && game.actionsLeft === 1);
   const selectedAction = pmActions.find(action => action.id === selectedActionId) || pmActions[0];
+  const unknownCount = [game.flags.decisionMakerKnown, game.flags.apiRiskKnown, game.flags.releaseCriteriaKnown].filter(value => !value).length;
+  const usedActionIds = pmActions.filter(action => game.logs.some(log => log.turn === game.turn && (action.id === "hearing" ? characters.some(person => log.label.startsWith(`${person.name}さんに`)) : log.label === action.title))).map(action => action.id);
 
   const finishAction = (next: GameState, title: string, detail: string, occurred: string, why: string, learning: string, tags: ScoreKey[]) => {
     const changes = getChanges(game.metrics, next.metrics);
@@ -107,15 +108,10 @@ export default function PMSimulator() {
     }, 280);
   };
 
-  const confirmationForAction = (action: PMActionDefinition): ActionConfirmation => ({
-    title: `${action.title} — Actionを使いますか？`, description: action.description,
-    aims: action.expected, impacts: action.impactHints.map(item => ({ label: item.label, direction: item.direction === "strongUp" ? "↑↑" : item.direction === "up" ? "↑" : item.direction === "down" ? "↓" : "→" })),
-  });
-
   const preparePMAction = (action: PMActionDefinition) => {
-    setSelectedActionId(action.id); setFlowStep("decision");
+    setActionDetailOpen(false); setSelectedActionId(action.id); setFlowStep("decision");
     if (action.id === "hearing") { setShowContacts(true); return; }
-    setPendingAction({ kind: "pm", id: action.id, confirmation: confirmationForAction(action) });
+    executePMAction(action.id);
   };
 
   const executePMAction = (id: string) => {
@@ -222,7 +218,6 @@ export default function PMSimulator() {
     if (!pendingAction) return;
     const action = pendingAction;
     setPendingAction(null);
-    if (action.kind === "pm") executePMAction(action.id);
     if (action.kind === "topic") askTopic(action.id);
     if (action.kind === "request") { setShowScenarioChoices(false); chooseRequest(action.id); }
     if (action.kind === "release") { setShowScenarioChoices(false); chooseRelease(action.id); }
@@ -266,7 +261,7 @@ export default function PMSimulator() {
   };
   const restart = () => {
     setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null);
-    setSelectedActionId("hearing"); setRecentChanges([]); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
+    setSelectedActionId("hearing"); setActionDetailOpen(false); setRecentChanges([]); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
     scrollPageToTop();
   };
 
@@ -287,6 +282,12 @@ export default function PMSimulator() {
   }
 
   const canAdvance = game.turn !== 2 || Boolean(game.requestDecision);
+  const scenarioDecision = (game.turn === 2 || game.turn === 4) ? <button type="button" className={"scenario-decision-trigger step-scenario-decision " + (!decisionPending ? "resolved" : "")} onClick={() => decisionPending && setShowScenarioChoices(true)} disabled={!decisionPending || Boolean(executingId) || Boolean(actionResult)}>
+    <span>{game.turn === 2 ? "今回の必須判断" : "リリース方針の決定"}</span>
+    <strong>{game.turn === 2 ? (game.requestDecision ? requestChoices.find(choice => choice.id === game.requestDecision)?.label : "追加要望へどう返答するか") : (game.releaseDecision ? releaseChoices.find(choice => choice.id === game.releaseDecision)?.label : "どのリリース方針を選ぶか")}</strong>
+    <small>{decisionPending ? "Action × 1を使って判断する" : "判断済み"}</small>
+  </button> : undefined;
+  const footerMessage = decisionPending && game.actionsLeft === 1 ? "最後の1Actionは、このターンの必須判断に使います。" : game.actionsLeft === 0 ? "このターンのActionを使い切りました。" : `まだ${game.actionsLeft} Actions残っています。必要な情報が足りているか確認してください。`;
   return <main className="simulation-shell">
     <header className="simulation-header">
       <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span></div>
@@ -294,44 +295,15 @@ export default function PMSimulator() {
       <button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>PROJECT LOG <b>{game.logs.length}</b></button>
     </header>
     <FlowSteps current={flowStep} />
-    <ProjectMetrics metrics={game.metrics} changes={recentChanges} />
-    <section className="decision-workspace cockpit-three-pane">
-      <section className="situation-pane">
-        <div className="turn-label"><span>TURN {game.turn}</span><b>{turn.theme}</b></div>
-        <article className="situation-card">
-          <span className="priority-label">CURRENT SITUATION</span>
-          <h1>{turn.title}</h1>
-          <p className="situation-lead">{game.turnNotice}</p>
-          <div className="consider-box"><span>PMとして考えるポイント</span><p>{turn.consider}</p></div>
-        </article>
-        <KnownInformation flags={game.flags} />
-      </section>
-      <section className="action-browser-pane">
-        <header className="action-heading">
-          <div><p className="eyebrow">YOUR DECISION</p><h2>PMとして、次に何を確かめますか？</h2><p>一覧から行動を選び、右側で狙いと影響を確認してください。</p></div>
-          <div className="action-budget"><strong>{game.actionsLeft}</strong><span>ACTIONS<br />LEFT</span></div>
-        </header>
-        {(game.turn === 2 || game.turn === 4) && <button type="button" className={"scenario-decision-trigger " + (!decisionPending ? "resolved" : "")} onClick={() => decisionPending && setShowScenarioChoices(true)} disabled={!decisionPending || Boolean(executingId) || Boolean(actionResult)}>
-          <span>{game.turn === 2 ? "今回の必須判断" : "リリース方針の決定"}</span>
-          <strong>{game.turn === 2 ? (game.requestDecision ? requestChoices.find(choice => choice.id === game.requestDecision)?.label : "追加要望へどう返答するか") : (game.releaseDecision ? releaseChoices.find(choice => choice.id === game.releaseDecision)?.label : "どのリリース方針を選ぶか")}</strong>
-          <small>{decisionPending ? "Action × 1を使って判断する" : "判断済み"}</small>
-        </button>}
-        <ActionList actions={pmActions} selectedId={selectedActionId} disabled={Boolean(executingId) || Boolean(actionResult)} onSelect={id => { setSelectedActionId(id); setFlowStep("decision"); }} />
-      </section>
-      <section className="action-detail-pane">
-        <ActionDetail action={selectedAction} disabled={explorationDisabled} onExecute={() => preparePMAction(selectedAction)} />
-        <footer className="turn-controls">
-          <p>{decisionPending && game.actionsLeft === 1 ? "最後の1Actionは、このターンの必須判断に使います。" : game.actionsLeft === 0 ? "このターンのActionを使い切りました。" : "まだ" + game.actionsLeft + " Actions残っています。必要な情報が足りているか確認してください。"}</p>
-          <button className="primary" disabled={!canAdvance || (game.turn === 4 && !game.releaseDecision) || Boolean(actionResult) || Boolean(executingId)} onClick={requestAdvance}>{game.turn === 4 ? "プロジェクト結果を見る" : "次の状況へ進む"} <span>→</span></button>
-        </footer>
-      </section>
-    </section>
+    {flowStep === "situation" && <SituationStep turnNumber={game.turn} theme={turn.theme} title={turn.title} notice={game.turnNotice} consider={turn.consider} flags={game.flags} onDecide={() => { setFlowStep("decision"); scrollPageToTop(); }} />}
+    {flowStep === "decision" && <DecisionStep title={turn.title} unknownCount={unknownCount} actionsLeft={game.actionsLeft} metrics={game.metrics} changes={recentChanges} actions={pmActions} usedIds={usedActionIds} disabled={explorationDisabled} scenarioDecision={scenarioDecision} footerMessage={footerMessage} canAdvance={canAdvance && (game.turn !== 4 || Boolean(game.releaseDecision)) && !Boolean(executingId)} finalTurn={game.turn === 4} onViewSituation={() => { setFlowStep("situation"); scrollPageToTop(); }} onSelectAction={action => { setSelectedActionId(action.id); setActionDetailOpen(true); }} onAdvance={requestAdvance} />}
+    {flowStep === "result" && actionResult && <ResultStep result={actionResult} onNext={closeResult} />}
     <div id="project-log" className={"log-section " + (showLog ? "is-open" : "")} onClick={() => setShowLog(false)}><div className="log-dialog" onClick={event => event.stopPropagation()}><button className="log-close" aria-label="プロジェクトログを閉じる" onClick={() => setShowLog(false)}>閉じる ×</button><ProjectLog logs={game.logs} compact /></div></div>
     {showScenarioChoices && <div className="scenario-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setShowScenarioChoices(false); }}><section className="scenario-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="scenario-choice-title"><header><div><p>TURN DECISION</p><h2 id="scenario-choice-title">{game.turn === 2 ? "追加要望へどう返答しますか？" : "リリース方針を選んでください"}</h2></div><button type="button" onClick={() => setShowScenarioChoices(false)}>閉じる</button></header><p>正解は一つではありません。今までに得た情報と、守りたいものから判断してください。</p><div className={"decision-choice-list " + (game.turn === 4 ? "release-list" : "")}>{(game.turn === 2 ? requestChoices : releaseChoices).map(choice => <button key={choice.id} type="button" onClick={() => prepareScenarioDecision(game.turn === 2 ? "request" : "release", choice.id)}><strong>{choice.label}</strong><span>{choice.note}</span><b>この判断を詳しく確認</b></button>)}</div></section></div>}
     {showContacts && <section className="contact-picker contact-picker-overlay"><header><div><span>話す相手を選ぶ</span><small>質問を選んだ時点で Action × 1</small></div><button onClick={() => setShowContacts(false)}>閉じる</button></header><div>{characters.map(person => <button key={person.id} onClick={() => chooseContact(person.id)}><span className={"avatar " + person.color}>{person.initials}</span><span><strong>{person.name}</strong><small>{person.role}</small><em>{person.status}</em></span><b>質問を見る</b></button>)}</div></section>}
     {selected && currentCharacter && <div className="drawer-backdrop" onClick={() => setSelected(null)}><aside className="chat-drawer" onClick={event => event.stopPropagation()}><header><span className={"avatar " + currentCharacter.color}>{currentCharacter.initials}</span><div><strong>{currentCharacter.name}</strong><small>{currentCharacter.role}</small></div><button aria-label="会話を閉じる" onClick={() => setSelected(null)}>×</button></header><div className="chat-history">{game.chats[selected].length === 0 && <div className="chat-intro"><span className={"avatar " + currentCharacter.color}>{currentCharacter.initials}</span><p>{currentCharacter.name}さんに、何を確認しますか？<br />質問の具体性で得られる情報が変わります。</p></div>}{game.chats[selected].map(message => <div key={message.id} className={"bubble " + (message.speaker === "player" ? "mine" : "theirs")}><small>{message.speaker === "player" ? "あなた" : currentCharacter.name}</small><p>{message.text}</p></div>)}</div><div className="topic-list"><div><strong>何について聞きますか？</strong><small>{decisionPending && game.actionsLeft === 1 ? "判断用Actionを確保中" : "残り " + game.actionsLeft + " Action"}</small></div>{currentTopics.map(topic => <button key={topic.id} disabled={game.asked.includes(topic.id) || explorationDisabled} onClick={() => prepareTopic(topic.id)}><span>{topic.label}</span><b>{game.asked.includes(topic.id) ? "確認済み" : "実行前に確認"}</b></button>)}</div></aside></div>}
     {pendingAction && <ActionConfirmDialog confirmation={pendingAction.confirmation} actionsLeft={game.actionsLeft} onCancel={() => setPendingAction(null)} onConfirm={confirmPendingAction} />}
+    {actionDetailOpen && <ActionDetailModal action={selectedAction} actionsLeft={game.actionsLeft} disabled={explorationDisabled} onClose={() => setActionDetailOpen(false)} onExecute={() => preparePMAction(selectedAction)} />}
     {confirmAdvance && <div className="confirm-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setConfirmAdvance(false); }}><section className="advance-confirm-dialog" role="dialog" aria-modal="true"><p>TURN CHECK</p><h2>Actionを残したまま次へ進みますか？</h2><div><strong>{game.actionsLeft}</strong><span>Actionsが未使用です</span></div><p>情報が十分だと判断した場合は進めます。未使用Actionは次のターンへ持ち越されません。</p><footer><button className="dialog-secondary" onClick={() => setConfirmAdvance(false)}>このターンに戻る</button><button className="primary" onClick={() => { setConfirmAdvance(false); advanceTurn(); }}>Actionを残して進む</button></footer></section></div>}
-    {actionResult && <ActionResultModal result={actionResult} onClose={closeResult} />}
   </main>;
 }
