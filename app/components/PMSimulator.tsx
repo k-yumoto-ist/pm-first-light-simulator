@@ -23,6 +23,11 @@ type PendingAction =
   | { kind: "request"; id: string; confirmation: ActionConfirmation }
   | { kind: "release"; id: string; confirmation: ActionConfirmation };
 
+const scrollPageToTop = () => {
+  const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior })));
+};
+
 const initialFlags: GameFlags = {
   decisionMakerKnown: false, apiRiskKnown: false, apiRiskMitigated: false,
   juniorProgressChecked: false, additionalRequestAccepted: false,
@@ -223,7 +228,7 @@ export default function PMSimulator() {
     if (action.kind === "release") { setShowScenarioChoices(false); chooseRelease(action.id); }
   };
 
-  const closeResult = () => { setActionResult(null); setFlowStep("decision"); window.setTimeout(() => setRecentChanges([]), 1800); };
+  const closeResult = () => { setActionResult(null); setFlowStep("decision"); scrollPageToTop(); window.setTimeout(() => setRecentChanges([]), 1800); };
   const advanceTurn = () => {
     if (actionResult || executingId) return;
     if (game.turn === 2 && !game.requestDecision) return;
@@ -253,7 +258,7 @@ export default function PMSimulator() {
         : `${game.flags.stakeholderAligned ? "意思決定者と早めに認識を合わせていたため、選択肢を共有した状態で最終判断に入れます。" : "意思決定者との認識合わせが不足し、リリース直前の説明負荷が高まりました。"}`;
       next.logs = [...game.logs, { id: crypto.randomUUID(), kind: "event", turn: nextTurn, day: turns[nextTurn - 1].day, event: next.turnNotice, label: "これまでの判断がプロジェクトへ反映", detail: "序盤の確認と準備の有無が、現在の影響差として表れました。", result: next.turnNotice, why, learning: nextTurn === 3 ? learningByArea.risk : learningByArea.stakeholder, changes: transitionChanges, tags: nextTurn === 3 ? ["schedule", "risk"] : ["stakeholder", "schedule"] }];
     }
-    setGame(next); setFlowStep("situation"); setShowContacts(false); setSelected(null); window.scrollTo({ top: 0, behavior: "smooth" });
+    setGame(next); setFlowStep("situation"); setShowContacts(false); setSelected(null); scrollPageToTop();
   };
   const requestAdvance = () => {
     if (game.actionsLeft > 0) { setConfirmAdvance(true); return; }
@@ -262,10 +267,12 @@ export default function PMSimulator() {
   const restart = () => {
     setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null);
     setSelectedActionId("hearing"); setRecentChanges([]); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollPageToTop();
   };
 
-  if (game.phase === "intro") return <main className="intro-shell"><div className="intro-glow" /><header className="brand"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small>PM SIMULATION</small></header><section className="hero"><p className="eyebrow">YOUR FIRST ASSIGNMENT</p><h1>あなたは今日から、<br /><em>このプロジェクトのPMです。</em></h1><p className="hero-copy">状況を読み、人に聞き、限られた時間で判断する。結果からPMの考え方を学ぶシミュレーションです。</p><div className="intro-rules"><div><b>1</b><span><strong>状況を確認</strong><small>今起きていることを読む</small></span></div><div><b>2</b><span><strong>PMとして判断</strong><small>3Actionの使い方を選ぶ</small></span></div><div><b>3</b><span><strong>結果から学ぶ</strong><small>因果とPMBOKを振り返る</small></span></div></div><p className="not-quiz">正解を当てるゲームではありません。あなたの判断で、スコープ・スケジュール・品質・チーム・関係者の状態が変化します。</p><button className="primary large" onClick={() => setGame({ ...game, phase: "playing" })}>PMとして案件を始める <span>→</span></button><p className="play-time">全4ターン・想定プレイ時間 30〜45分</p></section><section className="brief-grid"><article className="brief-main"><span className="card-kicker">PROJECT BRIEF</span><h2>{projectBrief.title}</h2><p>{projectBrief.purpose}</p></article><article><span>RELEASE</span><strong>{projectBrief.release}</strong></article><article><span>TEAM</span><strong>{projectBrief.team}</strong></article><article><span>KNOWN SCOPE</span><strong>{projectBrief.requirements}</strong></article><article className="quote"><span>FROM CUSTOMER</span><strong>{projectBrief.customer}</strong></article><article className="risk"><span>KNOWN RISK</span><strong>{projectBrief.risk}</strong><small>情報は意図的に不完全です</small></article></section></main>;
+  const startProject = () => { setGame({ ...game, phase: "playing" }); scrollPageToTop(); };
+
+  if (game.phase === "intro") return <main className="intro-shell"><div className="intro-glow" /><header className="brand"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small>PM SIMULATION</small></header><section className="hero"><p className="eyebrow">YOUR FIRST ASSIGNMENT</p><h1>あなたは今日から、<br /><em>このプロジェクトのPMです。</em></h1><p className="hero-copy">状況を読み、人に聞き、限られた時間で判断する。結果からPMの考え方を学ぶシミュレーションです。</p><div className="intro-rules"><div><b>1</b><span><strong>状況を確認</strong><small>今起きていることを読む</small></span></div><div><b>2</b><span><strong>PMとして判断</strong><small>3Actionの使い方を選ぶ</small></span></div><div><b>3</b><span><strong>結果から学ぶ</strong><small>因果とPMBOKを振り返る</small></span></div></div><p className="not-quiz">正解を当てるゲームではありません。あなたの判断で、スコープ・スケジュール・品質・チーム・関係者の状態が変化します。</p><button className="primary large" onClick={startProject}>PMとして案件を始める <span>→</span></button><p className="play-time">全4ターン・想定プレイ時間 30〜45分</p></section><section className="brief-grid"><article className="brief-main"><span className="card-kicker">PROJECT BRIEF</span><h2>{projectBrief.title}</h2><p>{projectBrief.purpose}</p></article><article><span>RELEASE</span><strong>{projectBrief.release}</strong></article><article><span>TEAM</span><strong>{projectBrief.team}</strong></article><article><span>KNOWN SCOPE</span><strong>{projectBrief.requirements}</strong></article><article className="quote"><span>FROM CUSTOMER</span><strong>{projectBrief.customer}</strong></article><article className="risk"><span>KNOWN RISK</span><strong>{projectBrief.risk}</strong><small>情報は意図的に不完全です</small></article></section></main>;
 
   if (game.phase === "result") {
     const avg = Math.round(Object.values(scores).reduce((sum, score) => sum + score, 0) / 4);
