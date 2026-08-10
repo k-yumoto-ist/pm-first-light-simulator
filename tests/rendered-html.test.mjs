@@ -44,6 +44,7 @@ test("keeps the decision loop in reusable product components", async () => {
   assert.match(simulator, /<ActionConfirmDialog/);
   assert.match(simulator, /<KnownInformation/);
   assert.match(simulator, /<ProjectMetrics/);
+  assert.match(simulator, /setShowContacts\(false\);\s*setSelected\(personId\)/);
   assert.match(simulator, /<ActionResultModal/);
   assert.match(simulator, /<ProjectLog/);
   assert.match(actions, /learningByArea/);
