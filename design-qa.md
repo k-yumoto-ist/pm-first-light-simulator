@@ -62,3 +62,43 @@ Separate full-size captures were used because the key fidelity questions are rea
 - A later pass could add a dedicated 1920 x 1080 visual capture when the in-app browser exposes a resizable viewport; the current responsive branch already builds successfully.
 
 final result: passed
+
+---
+
+## Result readability update
+
+**Comparison Target**
+
+- source visual truth: the browser-rendered result screen captured before this update, with `ProjectLog` body text at 10 px and PMBOK feedback at 13 px
+- implementation evidence: `docs/qa/result-after-top-1366x720.png` and `docs/qa/result-after-log-1366x720.png`
+- combined comparison evidence: `docs/qa/result-readability-comparison-1366x720.png`
+- viewport: 1366 x 720 CSS px, device scale 1
+- state: completed four-turn scenario, five logged decisions/events, same score/outcome data before and after
+
+**Findings**
+
+- No actionable P0, P1, or P2 findings remain.
+- [P3] The in-app browser's full-page capture repeats part of a long document in the image output. Focused viewport evidence was therefore used to judge the PMBOK and judgment-log regions.
+
+**Evidence and fixes**
+
+1. Earlier P1: the judgment log used a three-column grid with 10 px body text. Fix: result-only log cards are vertical, with 16 px body text, 19 px action titles, 12 px labels, and larger metric chips. Browser evidence confirms a single log column and 16 px body text.
+2. Earlier P2: PMBOK feedback body text was 13 px and visually compressed. Fix: feedback paragraphs are 16 px with 31.2 px line height, larger 28 px subheads, and more generous padding. Focused browser evidence shows the revised PMBOK card.
+3. Earlier P2: every log entry expanded by default. Fix: the report initially presents three representative recent entries and exposes an accessible “すべての判断を見る” control. Browser interaction expanded five entries and removed the control.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: existing serif result headings and sans-serif body pairing are retained. Reflection and log body copy are now 16 px; section headings are 32–38 px.
+- Spacing and layout rhythm: the result report deliberately permits vertical scroll, using larger section gaps and card padding instead of compressing text.
+- Colors and visual tokens: the dark-green, coral, teal, cream, gold, and semantic result colors are unchanged.
+- Image quality and asset fidelity: no image assets are used in this screen.
+- Copy and content: scenario outcomes and PMBOK learning copy are unchanged; labels now read in the natural order of event, PM decision, and result.
+
+**Validation**
+
+- Browser-tested a full playthrough into the result screen.
+- Verified 16 px result-log and feedback body text, 28 px feedback subheads, and one-column result-log cards.
+- Verified “すべての判断を見る” expands 3 visible entries to all 5.
+- `npm test` and `GITHUB_PAGES=true npm run build:pages` passed.
+
+final result: passed

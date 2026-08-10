@@ -63,4 +63,6 @@ test("keeps the three-step decision loop in reusable product components", async 
   assert.match(resultStep, /なぜこの結果になった/);
   assert.match(resultStep, /PMBOK LEARNING/);
   assert.match(projectLog, /DAY \{log\.day\}/);
+  assert.match(projectLog, /displayLimit/);
+  assert.match(projectLog, /すべての判断を見る/);
 });
