@@ -26,21 +26,31 @@ test("server-renders the PM simulation introduction", async () => {
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
 });
 
-test("keeps actions, results, and logs in reusable product components", async () => {
-  const [page, simulator, actions, resultModal, projectLog] = await Promise.all([
+test("keeps the decision loop in reusable product components", async () => {
+  const [page, simulator, actions, actionList, actionDetail, confirmDialog, resultModal, projectLog] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
     readFile(new URL("app/data/actions.ts", root), "utf8"),
+    readFile(new URL("app/components/ActionList.tsx", root), "utf8"),
+    readFile(new URL("app/components/ActionDetail.tsx", root), "utf8"),
+    readFile(new URL("app/components/ActionConfirmDialog.tsx", root), "utf8"),
     readFile(new URL("app/components/ActionResultModal.tsx", root), "utf8"),
     readFile(new URL("app/components/ProjectLog.tsx", root), "utf8"),
   ]);
   assert.match(page, /<PMSimulator/);
   assert.match(simulator, /<FlowSteps/);
-  assert.match(simulator, /<PMActionCard/);
+  assert.match(simulator, /<ActionList/);
+  assert.match(simulator, /<ActionDetail/);
+  assert.match(simulator, /<ActionConfirmDialog/);
+  assert.match(simulator, /<KnownInformation/);
+  assert.match(simulator, /<ProjectMetrics/);
   assert.match(simulator, /<ActionResultModal/);
   assert.match(simulator, /<ProjectLog/);
   assert.match(actions, /learningByArea/);
-  assert.match(resultModal, /なぜこうなった/);
+  assert.match(actionList, /PMアクション一覧/);
+  assert.match(actionDetail, /期待できる影響/);
+  assert.match(confirmDialog, /残りAction/);
+  assert.match(resultModal, /なぜこの結果になった/);
   assert.match(resultModal, /PMBOK LEARNING/);
   assert.match(projectLog, /DAY \{log\.day\}/);
 });

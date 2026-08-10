@@ -58,6 +58,7 @@ export type ActionResult = {
   learning: string;
   tags: ScoreKey[];
   changes: MetricChange[];
+  unlocked: string[];
 };
 
 export type GameState = {

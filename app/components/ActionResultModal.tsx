@@ -25,16 +25,17 @@ export function ActionResultModal({ result, onClose }: { result: ActionResult; o
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
-  return <div className="result-overlay" role="presentation"><section ref={dialogRef} className="action-result-modal" role="dialog" aria-modal="true" aria-labelledby="action-result-title">
+  return <div className="result-overlay" role="presentation"><section ref={dialogRef} className={`action-result-modal ${result.unlocked.length ? "has-unlock" : ""}`} role="dialog" aria-modal="true" aria-labelledby="action-result-title">
     <header><div><span>ACTION RESULT</span><h2 id="action-result-title">判断の結果を確認する</h2></div><span className="result-complete">完了</span></header>
     <div className="judgment-summary"><span>あなたの判断</span><strong>{result.title}</strong></div>
-    <div className="occurred"><span>起きたこと</span><p>{result.occurred}</p></div>
+    <div className="occurred"><span>何が起きたか</span><p>{result.occurred}</p></div>
+    {result.unlocked.length > 0 && <div className="unlocked-result"><span>新たに判明した重要情報</span><ul>{result.unlocked.map(item => <li key={item}><b>UNLOCKED</b><strong>{item}</strong></li>)}</ul></div>}
     <div className="impact-section"><h3>プロジェクトへの影響</h3>{result.changes.length > 0 ? <div className="change-grid">{result.changes.map(change => {
       const raw = change.after - change.before;
       const beneficial = change.key === "riskExposure" ? raw < 0 : raw > 0;
       return <article key={change.key} className={beneficial ? "change-positive" : "change-negative"}><span>{metricLabels[change.key]}</span><div><b>{change.before}</b><i>→</i><strong>{change.after}</strong></div><small>{raw > 0 ? `+${raw}` : raw} {beneficial ? "改善" : "注意"}</small></article>;
     })}</div> : <p className="information-gained">新しい情報を獲得しました。数値には表れなくても、後の判断材料になります。</p>}</div>
-    <div className="causal-explanation"><span>なぜこうなった？</span><p>{result.why}</p></div>
+    <div className="causal-explanation"><span>WHY? — なぜこの結果になった？</span><p>{result.why}</p></div>
     <aside className="learning-panel"><span>PMBOK LEARNING</span><p>{result.learning}</p></aside>
     <footer><button ref={closeRef} className="primary" onClick={onClose}>結果を理解して続ける <span>→</span></button></footer>
   </section></div>;

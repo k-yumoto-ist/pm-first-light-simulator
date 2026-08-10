@@ -1,17 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ActionConfirmDialog, type ActionConfirmation } from "./ActionConfirmDialog";
+import { ActionDetail } from "./ActionDetail";
+import { ActionList } from "./ActionList";
 import { ActionResultModal } from "./ActionResultModal";
 import { FlowSteps, type FlowStep } from "./FlowSteps";
-import { PMActionCard } from "./PMActionCard";
+import { KnownInformation } from "./KnownInformation";
+import { ProjectMetrics } from "./ProjectMetrics";
 import { ProjectLog } from "./ProjectLog";
 import { characters } from "../data/characters";
-import { decisionResultCopy, learningByArea, pmActions } from "../data/actions";
+import { decisionResultCopy, learningByArea, pmActions, type PMActionDefinition } from "../data/actions";
 import { buildFeedback } from "../data/feedback";
 import { calculateScores } from "../data/scoring";
 import { projectBrief, releaseChoices, requestChoices, turns } from "../data/scenario";
 import { conversationEngine } from "../lib/conversationEngine";
 import type { ActionLog, ActionResult, CharacterId, Effect, GameFlags, GameState, MetricChange, Metrics, ScoreKey } from "../types/game";
+
+type PendingAction =
+  | { kind: "pm"; id: PMActionDefinition["id"]; confirmation: ActionConfirmation }
+  | { kind: "topic"; id: string; confirmation: ActionConfirmation }
+  | { kind: "request"; id: string; confirmation: ActionConfirmation }
+  | { kind: "release"; id: string; confirmation: ActionConfirmation };
 
 const initialFlags: GameFlags = {
   decisionMakerKnown: false, apiRiskKnown: false, apiRiskMitigated: false,
@@ -54,6 +64,11 @@ export default function PMSimulator() {
   const [flowStep, setFlowStep] = useState<FlowStep>("situation");
   const [actionResult, setActionResult] = useState<ActionResult | null>(null);
   const [executingId, setExecutingId] = useState<string | null>(null);
+  const [selectedActionId, setSelectedActionId] = useState<PMActionDefinition["id"]>("hearing");
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [recentChanges, setRecentChanges] = useState<MetricChange[]>([]);
+  const [showScenarioChoices, setShowScenarioChoices] = useState(false);
+  const [confirmAdvance, setConfirmAdvance] = useState(false);
   const [previousScores, setPreviousScores] = useState<Record<ScoreKey, number> | null>(null);
 
   useEffect(() => { try { const raw = localStorage.getItem("pm-simulator-last-score"); if (raw) setPreviousScores(JSON.parse(raw)); } catch {} }, []);
@@ -64,18 +79,38 @@ export default function PMSimulator() {
   const currentTopics = selected ? conversationEngine.getTopics(selected, game) : [];
   const decisionPending = (game.turn === 2 && !game.requestDecision) || (game.turn === 4 && !game.releaseDecision);
   const explorationDisabled = Boolean(executingId) || Boolean(actionResult) || game.actionsLeft === 0 || (decisionPending && game.actionsLeft === 1);
+  const selectedAction = pmActions.find(action => action.id === selectedActionId) || pmActions[0];
 
   const finishAction = (next: GameState, title: string, detail: string, occurred: string, why: string, learning: string, tags: ScoreKey[]) => {
     const changes = getChanges(game.metrics, next.metrics);
+    const unlockedMap: { key: keyof GameFlags; copy: string }[] = [
+      { key: "decisionMakerKnown", copy: "最終意思決定者：高橋部長（リリース承認者）" },
+      { key: "apiRiskKnown", copy: "技術上の主要リスク：外部APIの仕様確定遅延" },
+      { key: "releaseCriteriaKnown", copy: "リリース成功条件：主要機能の提供と重大障害がないこと" },
+      { key: "juniorProgressChecked", copy: "若手メンバーの進捗に支援が必要な兆候" },
+    ];
+    const unlocked = unlockedMap.filter(item => !game.flags[item.key] && next.flags[item.key]).map(item => item.copy);
     const log: ActionLog = { id: crypto.randomUUID(), kind: "action", turn: game.turn, day: turn.day, event: game.turnNotice, label: title, detail, result: occurred, why, learning, changes, tags };
     window.setTimeout(() => {
       setGame({ ...next, actionsLeft: game.actionsLeft - 1, logs: [...game.logs, log] });
-      setActionResult({ title, occurred, why, learning, changes, tags });
+      setActionResult({ title, occurred, why, learning, changes, tags, unlocked });
+      setRecentChanges(changes);
       setExecutingId(null);
       setFlowStep("result");
       setSelected(null);
       setShowContacts(false);
     }, 280);
+  };
+
+  const confirmationForAction = (action: PMActionDefinition): ActionConfirmation => ({
+    title: `${action.title} — Actionを使いますか？`, description: action.description,
+    aims: action.expected, impacts: action.impactHints.map(item => ({ label: item.label, direction: item.direction === "strongUp" ? "↑↑" : item.direction === "up" ? "↑" : item.direction === "down" ? "↓" : "→" })),
+  });
+
+  const preparePMAction = (action: PMActionDefinition) => {
+    setSelectedActionId(action.id); setFlowStep("decision");
+    if (action.id === "hearing") { setShowContacts(true); return; }
+    setPendingAction({ kind: "pm", id: action.id, confirmation: confirmationForAction(action) });
   };
 
   const executePMAction = (id: string) => {
@@ -104,6 +139,19 @@ export default function PMSimulator() {
     const primaryArea = topic.tags[0] || "stakeholder";
     const why = `「${topic.label}」と具体的に聞いたことで、曖昧な報告では得られない判断材料を引き出せました。得た情報は後続ターンの選択肢と影響を変えます。`;
     finishAction(next, `${currentCharacter?.name}さんに${topic.label}`, topic.playerText, reply, why, learningByArea[primaryArea], topic.tags);
+  };
+
+  const prepareTopic = (topicId: string) => {
+    if (!selected || explorationDisabled) return;
+    const topic = currentTopics.find(item => item.id === topicId);
+    if (!topic) return;
+    const areaLabels: Record<ScoreKey, string> = { scope: "Scope", schedule: "Schedule", stakeholder: "Stakeholder", risk: "Risk" };
+    setPendingAction({ kind: "topic", id: topicId, confirmation: {
+      title: `${currentCharacter?.name}さんに「${topic.label}」を聞きますか？`,
+      description: topic.playerText,
+      aims: ["曖昧な報告ではなく具体的な事実を得る", "後続の判断に使える不確実性を減らす"],
+      impacts: topic.tags.map(tag => ({ label: areaLabels[tag], direction: "↑" })),
+    } });
   };
 
   const chooseRequest = (id: string) => {
@@ -138,7 +186,39 @@ export default function PMSimulator() {
     finishAction(next, choice.label, choice.note, copy.occurred, copy.why, copy.learning, ["scope", "schedule", "stakeholder", "risk"]);
   };
 
-  const closeResult = () => { setActionResult(null); setFlowStep("decision"); };
+  const prepareScenarioDecision = (kind: "request" | "release", id: string) => {
+    const choice = (kind === "request" ? requestChoices : releaseChoices).find(item => item.id === id);
+    if (!choice) return;
+    const directionalHints: Record<string, { label: string; direction: string }[]> = {
+      accept: [{ label: "Customer Trust", direction: "↑" }, { label: "Scope", direction: "↓" }, { label: "Schedule", direction: "↓" }],
+      analyze: [{ label: "Scope", direction: "↑" }, { label: "Schedule", direction: "↑" }, { label: "Customer Trust", direction: "→" }],
+      later: [{ label: "Scope", direction: "↑" }, { label: "Schedule", direction: "↑" }, { label: "Customer Trust", direction: "↓" }],
+      background: [{ label: "Scope", direction: "↑" }, { label: "Customer Trust", direction: "↑" }, { label: "Schedule", direction: "→" }],
+      trim: [{ label: "Schedule", direction: "↑" }, { label: "Quality", direction: "↑" }, { label: "Scope", direction: "↓" }],
+      delay: [{ label: "Quality", direction: "↑" }, { label: "Team", direction: "↑" }, { label: "Schedule", direction: "↓" }],
+      force: [{ label: "Schedule", direction: "↑" }, { label: "Quality", direction: "↓" }, { label: "Team", direction: "↓" }],
+      negotiate: [{ label: "Customer Trust", direction: "↑" }, { label: "Quality", direction: "↑" }, { label: "Schedule", direction: "→" }],
+      staged: [{ label: "Schedule", direction: "↑" }, { label: "Quality", direction: "↑" }, { label: "Risk Exposure", direction: "↓" }],
+    };
+    setShowScenarioChoices(false);
+    setPendingAction({ kind, id, confirmation: {
+      title: `「${choice.label}」と判断しますか？`, description: choice.note,
+      aims: kind === "request" ? ["追加要望への初動方針を示す", "スコープ・日程・関係者への影響を選ぶ"] : ["納期・品質・スコープの優先順位を決める", "関係者へ説明できるリリース方針を持つ"],
+      impacts: directionalHints[id] || [],
+    } });
+  };
+
+  const confirmPendingAction = () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action.kind === "pm") executePMAction(action.id);
+    if (action.kind === "topic") askTopic(action.id);
+    if (action.kind === "request") { setShowScenarioChoices(false); chooseRequest(action.id); }
+    if (action.kind === "release") { setShowScenarioChoices(false); chooseRelease(action.id); }
+  };
+
+  const closeResult = () => { setActionResult(null); setFlowStep("decision"); window.setTimeout(() => setRecentChanges([]), 1800); };
   const advanceTurn = () => {
     if (actionResult || executingId) return;
     if (game.turn === 2 && !game.requestDecision) return;
@@ -170,7 +250,15 @@ export default function PMSimulator() {
     }
     setGame(next); setFlowStep("situation"); setShowContacts(false); setSelected(null); window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const restart = () => { setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const requestAdvance = () => {
+    if (game.actionsLeft > 0) { setConfirmAdvance(true); return; }
+    advanceTurn();
+  };
+  const restart = () => {
+    setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null);
+    setSelectedActionId("hearing"); setRecentChanges([]); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   if (game.phase === "intro") return <main className="intro-shell"><div className="intro-glow" /><header className="brand"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small>PM SIMULATION</small></header><section className="hero"><p className="eyebrow">YOUR FIRST ASSIGNMENT</p><h1>あなたは今日から、<br /><em>このプロジェクトのPMです。</em></h1><p className="hero-copy">状況を読み、人に聞き、限られた時間で判断する。結果からPMの考え方を学ぶシミュレーションです。</p><div className="intro-rules"><div><b>1</b><span><strong>状況を確認</strong><small>今起きていることを読む</small></span></div><div><b>2</b><span><strong>PMとして判断</strong><small>3Actionの使い方を選ぶ</small></span></div><div><b>3</b><span><strong>結果から学ぶ</strong><small>因果とPMBOKを振り返る</small></span></div></div><p className="not-quiz">正解を当てるゲームではありません。あなたの判断で、スコープ・スケジュール・品質・チーム・関係者の状態が変化します。</p><button className="primary large" onClick={() => setGame({ ...game, phase: "playing" })}>PMとして案件を始める <span>→</span></button><p className="play-time">全4ターン・想定プレイ時間 30〜45分</p></section><section className="brief-grid"><article className="brief-main"><span className="card-kicker">PROJECT BRIEF</span><h2>{projectBrief.title}</h2><p>{projectBrief.purpose}</p></article><article><span>RELEASE</span><strong>{projectBrief.release}</strong></article><article><span>TEAM</span><strong>{projectBrief.team}</strong></article><article><span>KNOWN SCOPE</span><strong>{projectBrief.requirements}</strong></article><article className="quote"><span>FROM CUSTOMER</span><strong>{projectBrief.customer}</strong></article><article className="risk"><span>KNOWN RISK</span><strong>{projectBrief.risk}</strong><small>情報は意図的に不完全です</small></article></section></main>;
 
@@ -187,5 +275,51 @@ export default function PMSimulator() {
   }
 
   const canAdvance = game.turn !== 2 || Boolean(game.requestDecision);
-  return <main className="simulation-shell"><header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span></div><div className="time-context"><span>DAY {turn.day}</span><strong>{turn.week}</strong><small>リリースまで {turn.remaining}日</small></div><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>PROJECT LOG <b>{game.logs.length}</b></button></header><FlowSteps current={flowStep} /><section className="kpi-strip"><KPI label="Schedule" value={game.metrics.schedule} /><KPI label="Quality" value={game.metrics.quality} /><KPI label="Customer Trust" value={game.metrics.trust} /><KPI label="Team Condition" value={game.metrics.team} /><KPI label="Risk Exposure" value={game.metrics.riskExposure} inverse /></section><section className="decision-workspace"><section className="situation-column"><div className="turn-label"><span>TURN {game.turn}</span><b>{turn.theme}</b></div><article className="situation-card"><span className="priority-label">CURRENT SITUATION</span><h1>{turn.title}</h1><p className="situation-lead">{game.turnNotice}</p><div className="consider-box"><span>PMとして考えるポイント</span><p>{turn.consider}</p></div><button className="secondary-action" onClick={() => setFlowStep("decision")}>判断を始める <span>→</span></button></article><aside className="known-info"><header><span>判明した重要情報</span><small>会話と行動で更新されます</small></header><ul><li className={game.flags.decisionMakerKnown ? "known" : ""}><b>{game.flags.decisionMakerKnown ? "確認済み" : "未確認"}</b><span>{game.flags.decisionMakerKnown ? "最終決裁者：高橋部長" : "最終意思決定者"}</span></li><li className={game.flags.apiRiskKnown ? "known" : ""}><b>{game.flags.apiRiskKnown ? "確認済み" : "未確認"}</b><span>{game.flags.apiRiskKnown ? "外部API：仕様遅延の恐れ" : "技術上の主要リスク"}</span></li><li className={game.flags.releaseCriteriaKnown ? "known" : ""}><b>{game.flags.releaseCriteriaKnown ? "確認済み" : "未確認"}</b><span>{game.flags.releaseCriteriaKnown ? "成功条件：主要機能と安全性" : "リリース成功条件"}</span></li></ul></aside></section><section className="action-column"><header className="action-heading"><div><p className="eyebrow">YOUR DECISION</p><h2>あなたはPMとしてどう動きますか？</h2><p>結果の数値は事前には分かりません。行動の狙いと影響領域から判断してください。</p></div><div className="action-budget"><strong>{game.actionsLeft}</strong><span>ACTIONS<br />LEFT</span></div></header>{game.turn === 2 && <section className="turn-decision-panel"><header><span>まず、この依頼へどう返答しますか？</span><small>Action × 1</small></header><div className="decision-choice-list">{requestChoices.map(choice => <button key={choice.id} disabled={Boolean(game.requestDecision) || game.actionsLeft === 0 || Boolean(executingId)} className={game.requestDecision === choice.id ? "selected" : ""} onClick={() => chooseRequest(choice.id)}><strong>{choice.label}</strong><span>{choice.note}</span><b>{executingId === choice.id ? "処理中…" : game.requestDecision === choice.id ? "選択済み" : "この判断を選ぶ"}</b></button>)}</div></section>}{game.turn === 4 && <section className="turn-decision-panel"><header><span>リリース方針を決める</span><small>正解は一つではありません</small></header><div className="decision-choice-list release-list">{releaseChoices.map(choice => <button key={choice.id} disabled={Boolean(game.releaseDecision) || game.actionsLeft === 0 || Boolean(executingId)} className={game.releaseDecision === choice.id ? "selected" : ""} onClick={() => chooseRelease(choice.id)}><strong>{choice.label}</strong><span>{choice.note}</span><b>{executingId === choice.id ? "処理中…" : game.releaseDecision === choice.id ? "選択済み" : "この方針を選ぶ"}</b></button>)}</div></section>}<div className="action-card-grid">{pmActions.map(action => <PMActionCard key={action.id} action={action} disabled={explorationDisabled} executing={executingId === action.id} onSelect={() => executePMAction(action.id)} />)}</div>{showContacts && <section className="contact-picker"><header><div><span>話す相手を選ぶ</span><small>質問を選んだ時点で Action × 1</small></div><button onClick={() => setShowContacts(false)}>閉じる</button></header><div>{characters.map(person => <button key={person.id} onClick={() => setSelected(person.id)}><span className={`avatar ${person.color}`}>{person.initials}</span><span><strong>{person.name}</strong><small>{person.role}</small><em>{person.status}</em></span><b>質問を選ぶ</b></button>)}</div></section>}<footer className="turn-controls"><p>{decisionPending && game.actionsLeft === 1 ? "最後の1Actionは、このターンの必須判断に使います。" : game.actionsLeft === 0 ? "このターンのアクションを使い切りました。" : `あと${game.actionsLeft}回、PMとして行動できます。`}</p><button className="primary" disabled={!canAdvance || (game.turn === 4 && !game.releaseDecision) || Boolean(actionResult) || Boolean(executingId)} onClick={advanceTurn}>{game.turn === 4 ? "プロジェクト結果を見る" : "次の状況へ進む"} <span>→</span></button></footer></section></section><div id="project-log" className={`log-section ${showLog ? "is-open" : ""}`} onClick={() => setShowLog(false)}><div className="log-dialog" onClick={event => event.stopPropagation()}><button className="log-close" aria-label="プロジェクトログを閉じる" onClick={() => setShowLog(false)}>閉じる ×</button><ProjectLog logs={game.logs} compact /></div></div>{selected && currentCharacter && <div className="drawer-backdrop" onClick={() => setSelected(null)}><aside className="chat-drawer" onClick={event => event.stopPropagation()}><header><span className={`avatar ${currentCharacter.color}`}>{currentCharacter.initials}</span><div><strong>{currentCharacter.name}</strong><small>{currentCharacter.role}</small></div><button aria-label="会話を閉じる" onClick={() => setSelected(null)}>×</button></header><div className="chat-history">{game.chats[selected].length === 0 && <div className="chat-intro"><span className={`avatar ${currentCharacter.color}`}>{currentCharacter.initials}</span><p>{currentCharacter.name}さんに、何を確認しますか？<br />質問の具体性で得られる情報が変わります。</p></div>}{game.chats[selected].map(message => <div key={message.id} className={`bubble ${message.speaker === "player" ? "mine" : "theirs"}`}><small>{message.speaker === "player" ? "あなた" : currentCharacter.name}</small><p>{message.text}</p></div>)}</div><div className="topic-list"><div><strong>何について聞きますか？</strong><small>{decisionPending && game.actionsLeft === 1 ? "判断用Actionを確保中" : `残り ${game.actionsLeft} Action`}</small></div>{currentTopics.map(topic => <button key={topic.id} disabled={game.asked.includes(topic.id) || explorationDisabled} onClick={() => askTopic(topic.id)}><span>{topic.label}</span><b>{executingId === topic.id ? "処理中…" : game.asked.includes(topic.id) ? "確認済み" : "この質問をする"}</b></button>)}</div></aside></div>}{actionResult && <ActionResultModal result={actionResult} onClose={closeResult} />}</main>;
+  return <main className="simulation-shell">
+    <header className="simulation-header">
+      <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span></div>
+      <div className="time-context"><span>DAY {turn.day}</span><strong>{turn.week}</strong><small>リリースまで {turn.remaining}日</small></div>
+      <button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>PROJECT LOG <b>{game.logs.length}</b></button>
+    </header>
+    <FlowSteps current={flowStep} />
+    <ProjectMetrics metrics={game.metrics} changes={recentChanges} />
+    <section className="decision-workspace cockpit-three-pane">
+      <section className="situation-pane">
+        <div className="turn-label"><span>TURN {game.turn}</span><b>{turn.theme}</b></div>
+        <article className="situation-card">
+          <span className="priority-label">CURRENT SITUATION</span>
+          <h1>{turn.title}</h1>
+          <p className="situation-lead">{game.turnNotice}</p>
+          <div className="consider-box"><span>PMとして考えるポイント</span><p>{turn.consider}</p></div>
+        </article>
+        <KnownInformation flags={game.flags} />
+      </section>
+      <section className="action-browser-pane">
+        <header className="action-heading">
+          <div><p className="eyebrow">YOUR DECISION</p><h2>PMとして、次に何を確かめますか？</h2><p>一覧から行動を選び、右側で狙いと影響を確認してください。</p></div>
+          <div className="action-budget"><strong>{game.actionsLeft}</strong><span>ACTIONS<br />LEFT</span></div>
+        </header>
+        {(game.turn === 2 || game.turn === 4) && <button type="button" className={"scenario-decision-trigger " + (!decisionPending ? "resolved" : "")} onClick={() => decisionPending && setShowScenarioChoices(true)} disabled={!decisionPending || Boolean(executingId) || Boolean(actionResult)}>
+          <span>{game.turn === 2 ? "今回の必須判断" : "リリース方針の決定"}</span>
+          <strong>{game.turn === 2 ? (game.requestDecision ? requestChoices.find(choice => choice.id === game.requestDecision)?.label : "追加要望へどう返答するか") : (game.releaseDecision ? releaseChoices.find(choice => choice.id === game.releaseDecision)?.label : "どのリリース方針を選ぶか")}</strong>
+          <small>{decisionPending ? "Action × 1を使って判断する" : "判断済み"}</small>
+        </button>}
+        <ActionList actions={pmActions} selectedId={selectedActionId} disabled={Boolean(executingId) || Boolean(actionResult)} onSelect={id => { setSelectedActionId(id); setFlowStep("decision"); }} />
+      </section>
+      <section className="action-detail-pane">
+        <ActionDetail action={selectedAction} disabled={explorationDisabled} onExecute={() => preparePMAction(selectedAction)} />
+        <footer className="turn-controls">
+          <p>{decisionPending && game.actionsLeft === 1 ? "最後の1Actionは、このターンの必須判断に使います。" : game.actionsLeft === 0 ? "このターンのActionを使い切りました。" : "まだ" + game.actionsLeft + " Actions残っています。必要な情報が足りているか確認してください。"}</p>
+          <button className="primary" disabled={!canAdvance || (game.turn === 4 && !game.releaseDecision) || Boolean(actionResult) || Boolean(executingId)} onClick={requestAdvance}>{game.turn === 4 ? "プロジェクト結果を見る" : "次の状況へ進む"} <span>→</span></button>
+        </footer>
+      </section>
+    </section>
+    <div id="project-log" className={"log-section " + (showLog ? "is-open" : "")} onClick={() => setShowLog(false)}><div className="log-dialog" onClick={event => event.stopPropagation()}><button className="log-close" aria-label="プロジェクトログを閉じる" onClick={() => setShowLog(false)}>閉じる ×</button><ProjectLog logs={game.logs} compact /></div></div>
+    {showScenarioChoices && <div className="scenario-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setShowScenarioChoices(false); }}><section className="scenario-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="scenario-choice-title"><header><div><p>TURN DECISION</p><h2 id="scenario-choice-title">{game.turn === 2 ? "追加要望へどう返答しますか？" : "リリース方針を選んでください"}</h2></div><button type="button" onClick={() => setShowScenarioChoices(false)}>閉じる</button></header><p>正解は一つではありません。今までに得た情報と、守りたいものから判断してください。</p><div className={"decision-choice-list " + (game.turn === 4 ? "release-list" : "")}>{(game.turn === 2 ? requestChoices : releaseChoices).map(choice => <button key={choice.id} type="button" onClick={() => prepareScenarioDecision(game.turn === 2 ? "request" : "release", choice.id)}><strong>{choice.label}</strong><span>{choice.note}</span><b>この判断を詳しく確認</b></button>)}</div></section></div>}
+    {showContacts && <section className="contact-picker contact-picker-overlay"><header><div><span>話す相手を選ぶ</span><small>質問を選んだ時点で Action × 1</small></div><button onClick={() => setShowContacts(false)}>閉じる</button></header><div>{characters.map(person => <button key={person.id} onClick={() => setSelected(person.id)}><span className={"avatar " + person.color}>{person.initials}</span><span><strong>{person.name}</strong><small>{person.role}</small><em>{person.status}</em></span><b>質問を見る</b></button>)}</div></section>}
+    {selected && currentCharacter && <div className="drawer-backdrop" onClick={() => setSelected(null)}><aside className="chat-drawer" onClick={event => event.stopPropagation()}><header><span className={"avatar " + currentCharacter.color}>{currentCharacter.initials}</span><div><strong>{currentCharacter.name}</strong><small>{currentCharacter.role}</small></div><button aria-label="会話を閉じる" onClick={() => setSelected(null)}>×</button></header><div className="chat-history">{game.chats[selected].length === 0 && <div className="chat-intro"><span className={"avatar " + currentCharacter.color}>{currentCharacter.initials}</span><p>{currentCharacter.name}さんに、何を確認しますか？<br />質問の具体性で得られる情報が変わります。</p></div>}{game.chats[selected].map(message => <div key={message.id} className={"bubble " + (message.speaker === "player" ? "mine" : "theirs")}><small>{message.speaker === "player" ? "あなた" : currentCharacter.name}</small><p>{message.text}</p></div>)}</div><div className="topic-list"><div><strong>何について聞きますか？</strong><small>{decisionPending && game.actionsLeft === 1 ? "判断用Actionを確保中" : "残り " + game.actionsLeft + " Action"}</small></div>{currentTopics.map(topic => <button key={topic.id} disabled={game.asked.includes(topic.id) || explorationDisabled} onClick={() => prepareTopic(topic.id)}><span>{topic.label}</span><b>{game.asked.includes(topic.id) ? "確認済み" : "実行前に確認"}</b></button>)}</div></aside></div>}
+    {pendingAction && <ActionConfirmDialog confirmation={pendingAction.confirmation} actionsLeft={game.actionsLeft} onCancel={() => setPendingAction(null)} onConfirm={confirmPendingAction} />}
+    {confirmAdvance && <div className="confirm-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setConfirmAdvance(false); }}><section className="advance-confirm-dialog" role="dialog" aria-modal="true"><p>TURN CHECK</p><h2>Actionを残したまま次へ進みますか？</h2><div><strong>{game.actionsLeft}</strong><span>Actionsが未使用です</span></div><p>情報が十分だと判断した場合は進めます。未使用Actionは次のターンへ持ち越されません。</p><footer><button className="dialog-secondary" onClick={() => setConfirmAdvance(false)}>このターンに戻る</button><button className="primary" onClick={() => { setConfirmAdvance(false); advanceTurn(); }}>Actionを残して進む</button></footer></section></div>}
+    {actionResult && <ActionResultModal result={actionResult} onClose={closeResult} />}
+  </main>;
 }
