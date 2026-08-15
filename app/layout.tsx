@@ -16,7 +16,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "PROJECT: FIRST LIGHT | PM Simulator",
   description: "PMとして人に聞き、判断し、プロジェクトを動かす体験型PMシミュレーション。",
-  icons: { icon: `${basePath}/favicon.svg`, shortcut: `${basePath}/favicon.svg` },
+  icons: {
+    icon: [{ url: `${basePath}/icon.png`, type: "image/png", sizes: "512x512" }],
+    shortcut: [{ url: `${basePath}/icon.png`, type: "image/png" }],
+    apple: [{ url: `${basePath}/apple-icon.png`, type: "image/png", sizes: "180x180" }],
+  },
   openGraph: {
     title: "PROJECT: FIRST LIGHT",
     description: "初めてのプロジェクトマネジメント — 人に聞き、状況を読み、限られた時間で判断する。",
