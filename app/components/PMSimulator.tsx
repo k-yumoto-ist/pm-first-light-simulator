@@ -7,7 +7,7 @@ import { DecisionStep } from "./DecisionStep";
 import { FlowSteps, type FlowStep } from "./FlowSteps";
 import { ProjectLog } from "./ProjectLog";
 import { ResultStep } from "./ResultStep";
-import { FinalResultFramework, FinalResultSection, type PMStyle } from "./FinalResultFramework";
+import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
 import { SituationStep } from "./SituationStep";
 import { SimulatorIntro } from "./SimulatorIntro";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder } from "./StakeholderChatDrawer";
@@ -44,6 +44,7 @@ function makeInitialState(): GameState {
 }
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 const statusFor = (value: number) => value >= 78 ? "順調" : value >= 60 ? "注意" : value >= 42 ? "遅延" : "危険";
+const outcomeToneFor = (value: number): OutcomeSummaryItem["tone"] => value >= 78 ? "positive" : value >= 60 ? "neutral" : value >= 42 ? "warning" : "negative";
 const subscribeToStoredScore = () => () => {};
 const getStoredScoreSnapshot = () => { try { return localStorage.getItem("pm-simulator-last-score"); } catch { return null; } };
 const getServerScoreSnapshot = () => null;
@@ -297,7 +298,14 @@ export default function PMSimulator() {
     const previousTotal = previousScores
       ? Math.round(Object.values(previousScores).reduce((sum, score) => sum + score, 0) / 4)
       : undefined;
-    return <FinalResultFramework mode="light" title={releaseSuccess ? "プロジェクトは着地しました。" : "課題を残す着地になりました。"} score={avg} previousScore={previousTotal} style={style} summary="4つのPM観点に基づく既存スコアを、プロジェクト運営全体の振り返りとして表示しています。" metrics={finalMetrics} breakdown={(Object.keys(scores) as ScoreKey[]).map(key => ({ label: scoreLabels[key], score: scores[key] }))} actions={<button className="primary large" onClick={restart}>別の判断でリトライ <span>↻</span></button>}>
+    const outcomeSummary: OutcomeSummaryItem[] = [
+      { label: "リリース", status: releaseSuccess ? "成功" : "課題あり", tone: releaseSuccess ? "positive" : "negative" },
+      { label: "納期", status: statusFor(game.metrics.schedule), tone: outcomeToneFor(game.metrics.schedule) },
+      { label: "品質", status: statusFor(game.metrics.quality), tone: outcomeToneFor(game.metrics.quality) },
+      { label: "顧客信頼", status: statusFor(game.metrics.trust), tone: outcomeToneFor(game.metrics.trust) },
+      { label: "チーム状態", status: statusFor(game.metrics.team), tone: outcomeToneFor(game.metrics.team) },
+    ];
+    return <FinalResultFramework mode="light" title={releaseSuccess ? "プロジェクトは着地しました。" : "課題を残す着地になりました。"} score={avg} previousScore={previousTotal} style={style} summary="4つのPM観点に基づく既存スコアを、プロジェクト運営全体の振り返りとして表示しています。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={(Object.keys(scores) as ScoreKey[]).map(key => ({ label: scoreLabels[key], score: scores[key] }))} actions={<button className="primary large" onClick={restart}>別の判断でリトライ <span>↻</span></button>}>
       <FinalResultSection eyebrow="PROJECT OUTCOME" title="今回の判断で、何を動かしたか"><div className="final-review-grid"><article><span>よく選んだ行動</span><strong>{frequent}</strong><p>今回の判断傾向を表しています。</p></article><article><span>対応できた問題</span><ul>{addressed.length ? addressed.map(item => <li key={item}>{item}</li>) : <li>明確に対応できた問題はありませんでした</li>}</ul></article><article><span>次に確認したい観点</span><ul>{missed.length ? missed.map(item => <li key={item}>{item}</li>) : <li>主要な問題へ対応できました</li>}</ul></article><article><span>影響が大きかった判断</span><strong>{biggest?.label || "—"}</strong><p>{biggest?.why || "記録なし"}</p></article></div></FinalResultSection>
       <FinalResultSection eyebrow="DECISION CHAIN" title="主要な判断と結果"><ProjectLog logs={game.logs} initialLimit={4} /></FinalResultSection>
       <FinalResultSection eyebrow="PM REVIEW" title="今回見られた行動"><div className="feedback-list">{feedback.map(item => <article key={item.area} className={item.positive ? "positive" : "lesson"}><div className="feedback-area">{scoreLabels[item.area]}</div><div><h3>{item.title}</h3><p>{item.story}</p></div></article>)}</div></FinalResultSection>

@@ -94,6 +94,10 @@ test("renders the stateful scenario through the canonical LIGHT flow", async () 
   assert.match(result, /presentation === "dialog"/);
   assert.match(finalResult, /PROJECT SCORE/);
   assert.match(finalResult, /YOUR PM STYLE/);
+  assert.match(finalResult, /type OutcomeSummaryItem/);
+  assert.match(finalResult, /OUTCOME SUMMARY/);
+  assert.match(finalResult, /final-outcome-summary/);
+  assert.match(runner, /outcomeSummary=\{outcomeSummary\}/);
   assert.match(accessibleDialog, /event\.key !== "Tab"/);
   assert.match(accessibleDialog, /previousFocusRef/);
   assert.match(chat, /chat-drawer/);
@@ -120,6 +124,8 @@ test("keeps the light-mode decision loop intact", async () => {
   assert.match(simulator, /log\.turn === game\.turn/);
   assert.match(simulator, /<ProjectLog/);
   assert.match(simulator, /<FinalResultFramework mode="light"/);
+  assert.match(simulator, /label: "リリース"/);
+  assert.match(simulator, /outcomeSummary=\{outcomeSummary\}/);
   assert.match(simulator, /<StakeholderChatDrawer/);
   assert.match(simulator, /<StakeholderContactPicker/);
   assert.match(simulator, /<SimulatorIntro/);

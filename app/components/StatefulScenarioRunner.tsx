@@ -11,7 +11,7 @@ import type { ActionLog, ActionResult, MetricChange, Metrics, ScoreKey } from ".
 import { AccessibleDialog } from "./AccessibleDialog";
 import { ActionConfirmDialog, type ActionConfirmation } from "./ActionConfirmDialog";
 import { ActionDetailModal } from "./ActionDetailModal";
-import { FinalResultFramework, FinalResultSection, type PMStyle } from "./FinalResultFramework";
+import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
 import { FlowSteps } from "./FlowSteps";
 import { ProjectLog } from "./ProjectLog";
 import { ResultStep } from "./ResultStep";
@@ -48,6 +48,8 @@ function applyMetrics(current: SimulationMetrics, effects: Partial<SimulationMet
 function mergeFlags(current: Record<string, boolean | number | string>, changes?: Record<string, boolean | number | string>) { return changes ? { ...current, ...changes } : current; }
 function hasFlags(flags: Record<string, boolean | number | string>, ids: string[] = []) { return ids.every(id => Boolean(flags[id])); }
 function status(key: keyof SimulationMetrics, value: number) { const effective = key === "riskExposure" ? 100 - value : value; return effective >= 72 ? "Stable" : effective >= 52 ? "Caution" : effective >= 32 ? "Warning" : "Critical"; }
+function summaryStatus(key: keyof SimulationMetrics, value: number) { const effective = key === "riskExposure" ? 100 - value : value; return effective >= 72 ? "順調" : effective >= 52 ? "注意" : effective >= 32 ? "警戒" : "危険"; }
+function summaryTone(key: keyof SimulationMetrics, value: number): OutcomeSummaryItem["tone"] { const effective = key === "riskExposure" ? 100 - value : value; return effective >= 72 ? "positive" : effective >= 52 ? "neutral" : effective >= 32 ? "warning" : "negative"; }
 function isFavorable(key: keyof SimulationMetrics, delta: number) { return key === "riskExposure" ? delta < 0 : delta > 0; }
 function toCockpitMetrics(metrics: SimulationMetrics): Metrics { return { schedule: metrics.schedule, quality: metrics.quality, trust: metrics.trust, team: metrics.teamHealth, scopeStability: metrics.scopeStability, riskExposure: metrics.riskExposure, stakeholderAlignment: metrics.stakeholderAlignment }; }
 function toCockpitChanges(before: SimulationMetrics, after: SimulationMetrics): MetricChange[] {
@@ -227,7 +229,16 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
           ? { code: "DELIVERY FIRST", description: "期限と実現可能性を明確にし、プロジェクトを着地させる判断が多く見られました。" }
           : { code: "VALUE BALANCER", description: "顧客価値・品質・納期のバランスを見ながら、実現する範囲を整える判断が多く見られました。" };
   const finalMetrics = (["schedule", "quality", "trust", "teamHealth", "riskExposure"] as Array<keyof SimulationMetrics>).map(key => ({ label: metricLabels[key], value: key === "riskExposure" ? 100 - metrics[key] : metrics[key], status: status(key, metrics[key]) }));
-  return <FinalResultFramework mode="project" title={scenario.title} score={totalScore} style={style} summary="正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。" metrics={finalMetrics} breakdown={[{ label: "Project Outcome", score: outcomeScore, weight: "50%" }, { label: "Decision Process", score: decisionScore, weight: "30%" }, { label: "Information Gathering", score: informationScore, weight: "20%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>最初からプレイ</button></>}>
+  const releaseStatus = flags.releaseDelayed ? "延期" : flags.releasedFull ? "予定日リリース" : flags.phasedRelease ? "段階リリース" : "判断完了";
+  const releaseTone: OutcomeSummaryItem["tone"] = flags.releaseDelayed || (flags.releasedFull && metrics.quality < 52) ? "warning" : flags.phasedRelease || flags.releasedFull ? "positive" : "neutral";
+  const outcomeSummary: OutcomeSummaryItem[] = [
+    { label: "リリース", status: releaseStatus, tone: releaseTone },
+    { label: "納期", status: summaryStatus("schedule", metrics.schedule), tone: summaryTone("schedule", metrics.schedule) },
+    { label: "品質", status: summaryStatus("quality", metrics.quality), tone: summaryTone("quality", metrics.quality) },
+    { label: "顧客信頼", status: summaryStatus("trust", metrics.trust), tone: summaryTone("trust", metrics.trust) },
+    { label: "チーム状態", status: summaryStatus("teamHealth", metrics.teamHealth), tone: summaryTone("teamHealth", metrics.teamHealth) },
+  ];
+  return <FinalResultFramework mode="project" title={scenario.title} score={totalScore} style={style} summary="正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={[{ label: "Project Outcome", score: outcomeScore, weight: "50%" }, { label: "Decision Process", score: decisionScore, weight: "30%" }, { label: "Information Gathering", score: informationScore, weight: "20%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>最初からプレイ</button></>}>
     <FinalResultSection eyebrow="PROJECT OUTCOME" title="守ったもの / 犠牲になったもの"><div className="tradeoff-review"><div><h3>あなたが守ったもの</h3>{protectedItems.length ? protectedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>明確に改善した指標はありませんでした。</p>}</div><div><h3>代わりに犠牲になったもの</h3>{sacrificedItems.length ? sacrificedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>大きく悪化した指標はありませんでした。</p>}</div></div></FinalResultSection>
     <FinalResultSection eyebrow="DECISION CHAIN" title="判断が後からどう効いたか"><div className="decision-chain">{chain.map((item, index) => <div key={`${item.turn}-${index}`} className={`chain-${item.kind}`}><b>{item.timing}</b><span>{item.title}</span><strong>{item.effect}</strong>{index < chain.length - 1 ? <i>↓</i> : null}</div>)}</div></FinalResultSection>
     <FinalResultSection eyebrow="INFORMATION REVIEW" title="何を知って、何を知らないまま決めたか"><div className="information-review"><div><h3>取得した重要情報</h3>{acquired.length ? <ul>{acquired.map(info => <li key={info.id}><strong>✓ {info.label}</strong><span>{info.detail}</span></li>)}</ul> : <p>重要情報を取得せずに判断しました。</p>}</div><div><h3>取得できなかった重要情報</h3>{missed.length ? <ul>{missed.map(info => <li key={info.id}><strong>— {info.label}</strong><span>{sourceActionsByInformation.get(info.id)?.join("／") || info.source}で確認できました。</span></li>)}</ul> : <p>このシナリオの重要情報をすべて確認しました。</p>}</div></div></FinalResultSection>
