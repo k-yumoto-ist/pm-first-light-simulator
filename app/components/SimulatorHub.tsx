@@ -6,6 +6,7 @@ import AdvancedSimulator from "./AdvancedSimulator";
 import { scenarios } from "@/src/data/scenarios";
 import type { Difficulty, PmbokDomain } from "@/src/data/types";
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
+import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 
 type View = "home" | "light" | "training" | "scenario" | "advanced";
 
@@ -35,7 +36,7 @@ export default function SimulatorHub() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [view]);
 
-  if (view === "light") return <PMSimulator />;
+  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator /></div>;
   if (view === "advanced" && selectedScenarioId) {
     return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} onExit={() => setView("home")} />;
   }
@@ -43,7 +44,7 @@ export default function SimulatorHub() {
   if (view === "training" || view === "scenario") {
     const selectScenario = (id: string) => setSelectedScenarioId(id);
     return (
-      <main className={`v2-setup-shell mode-${view}`}>
+      <main className={`v2-setup-shell ${view === "training" ? modeThemes.training.className : modeThemes.project.className}`} style={modeThemeStyle(view === "training" ? "training" : "project")}>
         <header className="v2-brandbar">
           <button className="v2-back" onClick={() => { setView("home"); setSelectedScenarioId(undefined); }}>← MODE SELECT</button>
           <div><strong>PROJECT: FIRST LIGHT</strong><span>PM SIMULATOR</span></div>
@@ -108,13 +109,13 @@ export default function SimulatorHub() {
         <p>知識を先に覚えるのではなく、状況を読み、判断し、起きたことを振り返るシミュレーションです。</p>
       </section>
       <section className="v2-mode-grid" aria-label="プレイモード">
-        <button className="v2-mode-card light" onClick={() => setView("light")}>
+        <button className={`v2-mode-card light ${modeThemes.light.className}`} style={modeThemeStyle("light")} onClick={() => setView("light")}>
           <span className="v2-mode-number">01</span><p>LIGHT MODE</p><h2>初めての<br />プロジェクトマネジメント</h2><small>既存の4ターンを通じて、PMの基本を体験</small><b>PLAY →</b>
         </button>
-        <button className="v2-mode-card" onClick={() => { setEntryMode("training"); setView("training"); }}>
+        <button className={`v2-mode-card ${modeThemes.training.className}`} style={modeThemeStyle("training")} onClick={() => { setEntryMode("training"); setView("training"); }}>
           <span className="v2-mode-number">02</span><p>TRAINING MODE</p><h2>特定テーマを<br />集中的に練習する</h2><small>Scope / Schedule / Resources / Stakeholders</small><b>SELECT →</b>
         </button>
-        <button className="v2-mode-card" onClick={() => { setEntryMode("project"); setView("scenario"); }}>
+        <button className={`v2-mode-card ${modeThemes.project.className}`} style={modeThemeStyle("project")} onClick={() => { setEntryMode("project"); setView("scenario"); }}>
           <span className="v2-mode-number">03</span><p>PROJECT SCENARIO MODE</p><h2>複雑な案件で<br />PMとして悩む</h2><small>追加要件・遅延・離脱・関係者対立</small><b>SELECT →</b>
         </button>
       </section>

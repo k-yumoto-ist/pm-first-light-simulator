@@ -48,15 +48,14 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 @media(max-width:650px){.stateful-header{grid-template-columns:1fr auto}.stateful-header nav{display:none}.stateful-briefing,.stateful-situation,.stateful-action-view,.stateful-result{padding:38px 18px}.stateful-known>button{width:100%;margin:12px 0 0}.stateful-action-list,.stateful-result-grid,.information-review,.tradeoff-review,.stakeholder-voices,.stateful-behavior-review{grid-template-columns:1fr}.stateful-action-heading{align-items:flex-start;flex-direction:column}.stateful-decision-entry{align-items:stretch;flex-direction:column}.stateful-decision-modal{padding:28px 20px}.stateful-report{padding:48px 18px 70px}.stateful-final-metrics{grid-template-columns:1fr 1fr}.decision-chain>div{grid-template-columns:1fr;gap:4px}.stateful-domain-review>div{grid-template-columns:1fr;gap:5px}.stateful-result-actions{flex-direction:column-reverse}}
 @media(max-width:650px){.stateful-metric-ribbon{justify-content:flex-start;overflow-x:auto}.stateful-metric-ribbon span{flex:none}}
 
-/* Mode themes and responsive stability */
-.mode-training{--mode-accent:#3f6fae;--mode-accent-dark:#2d568a;--mode-soft:#e8eef7;--mode-tint:#f4f6fb}
-.mode-scenario,.mode-project{--mode-accent:#d16443;--mode-accent-dark:#9f462f;--mode-soft:#f7e7df;--mode-tint:#fff7f2}
-.v2-mode-card:nth-child(2){background:#edf2f8;box-shadow:inset 0 4px #4778b6}.v2-mode-card:nth-child(2)>p,.v2-mode-card:nth-child(2)>b{color:#35669f}
-.v2-mode-card:nth-child(3){background:#fff2eb;box-shadow:inset 0 4px #d16443}.v2-mode-card:nth-child(3)>p,.v2-mode-card:nth-child(3)>b{color:#b64f34}
-.mode-training.v2-setup-shell{background:linear-gradient(125deg,#f5f3ec 0 76%,#e5edf8 76%)}.mode-scenario.v2-setup-shell{background:linear-gradient(125deg,#f5f3ec 0 76%,#f6e5dc 76%)}
-.mode-training .v2-brandbar,.mode-training .v2-sim-header{border-bottom-color:var(--mode-accent)}.mode-scenario .v2-brandbar,.mode-project .v2-sim-header,.mode-project .stateful-header{border-bottom-color:var(--mode-accent)}
+/* Mode themes and responsive stability. Values are injected from modeThemes.ts. */
+.mode-light,.mode-training,.mode-project{--mode-accent-dark:var(--mode-accent-hover);--mode-soft:var(--mode-accent-soft);--mode-tint:color-mix(in srgb,var(--mode-accent-soft) 54%,white)}
+.v2-mode-card.mode-training{background:var(--mode-accent-soft);box-shadow:inset 0 4px var(--mode-accent)}.v2-mode-card.mode-training>p,.v2-mode-card.mode-training>b{color:var(--mode-accent-hover)}
+.v2-mode-card.mode-project{background:var(--mode-accent-soft);box-shadow:inset 0 4px var(--mode-accent)}.v2-mode-card.mode-project>p,.v2-mode-card.mode-project>b{color:var(--mode-accent-hover)}
+.mode-training.v2-setup-shell,.mode-project.v2-setup-shell{background:linear-gradient(125deg,#f5f3ec 0 76%,var(--mode-accent-soft) 76%)}
+.mode-training .v2-brandbar,.mode-training .v2-sim-header,.mode-project .v2-brandbar,.mode-project .v2-sim-header,.mode-project .stateful-header{border-bottom-color:var(--mode-accent)}
 .mode-training .v2-kicker,.mode-training .v2-select-card strong,.mode-training .v2-difficulty-options strong{color:var(--mode-accent)}.mode-training .v2-select-icon{background:var(--mode-soft);color:var(--mode-accent)}.mode-training .v2-select-card:hover:not(:disabled),.mode-training .v2-select-card.selected{border-color:var(--mode-accent);box-shadow:inset 0 -4px var(--mode-accent)}.mode-training .v2-difficulty-options button.selected{border-color:var(--mode-accent);background:var(--mode-tint)}.mode-training .primary{background:var(--mode-accent);box-shadow:0 6px 0 var(--mode-accent-dark)}.mode-training .primary:hover:not(:disabled){box-shadow:0 8px 0 var(--mode-accent-dark)}.mode-training .primary:disabled{box-shadow:none}.mode-training .v2-sim-header nav i.active{background:var(--mode-accent)}
-.mode-scenario .v2-kicker,.mode-project .v2-kicker{color:var(--mode-accent)}.mode-scenario .v2-select-icon{background:var(--mode-soft);color:var(--mode-accent)}.mode-scenario .v2-select-card:hover:not(:disabled),.mode-scenario .v2-select-card.selected{border-color:var(--mode-accent);box-shadow:inset 0 -4px var(--mode-accent)}.mode-scenario .v2-difficulty-options button.selected{border-color:var(--mode-accent);background:var(--mode-tint)}.mode-project .stateful-header nav i.active{background:var(--mode-accent)}.mode-project .stateful-action-list>button:hover:not(:disabled){border-color:var(--mode-accent);box-shadow:inset 3px 0 var(--mode-accent)}.mode-project .stateful-action-list>button>b{background:var(--mode-soft);color:var(--mode-accent)}.mode-project .stateful-action-counter strong,.mode-project .stateful-change em{color:var(--mode-accent)}
+.mode-project .v2-kicker{color:var(--mode-accent)}.mode-project .v2-select-icon{background:var(--mode-soft);color:var(--mode-accent)}.mode-project .v2-select-card:hover:not(:disabled),.mode-project .v2-select-card.selected{border-color:var(--mode-accent);box-shadow:inset 0 -4px var(--mode-accent)}.mode-project .v2-difficulty-options button.selected{border-color:var(--mode-accent);background:var(--mode-tint)}.mode-project .stateful-header nav i.active{background:var(--mode-accent)}.mode-project .stateful-action-list>button:hover:not(:disabled){border-color:var(--mode-accent);box-shadow:inset 3px 0 var(--mode-accent)}.mode-project .stateful-action-list>button>b{background:var(--mode-soft);color:var(--mode-accent)}.mode-project .stateful-action-counter strong,.mode-project .stateful-change em{color:var(--mode-accent)}
 .mode-simulator{min-height:100vh}.mode-simulator>.v2-sim-shell,.mode-simulator>.stateful-shell{min-height:100vh}
 .v2-brandbar{position:sticky;z-index:20;top:0}
 
@@ -202,7 +201,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 }
 
 /* Canonical cockpit: PROJECT SCENARIO reuses the LIGHT MODE interaction shell. */
-.stateful-canonical-shell { --mode-accent:var(--coral); }
+.stateful-canonical-shell { color:var(--ink); }
 .simulator-cockpit.has-side-content .decision-step-inner { width:min(1380px,100%); }
 .cockpit-situation-summary { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin:8px 0; padding:10px 14px; border-left:4px solid var(--coral); background:#f7f3e9; }
 .cockpit-situation-summary>p { max-width:900px; margin:0; color:#334d51; font-size:15px; line-height:1.55; }
@@ -274,6 +273,55 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .canonical-result-dialog .result-step-inner { padding:14px; }
   .canonical-decision-footer { align-items:stretch; flex-direction:column; padding:14px 18px 2px; }
   .canonical-decision-footer button { width:100%; }
+}
+
+/* Shared mode accent: identity only; metric health colors remain unchanged. */
+.mode-simulator .simulation-header{border-bottom:3px solid var(--mode-accent)}
+.mode-simulator .mode-badge,.final-result-topbar .mode-badge{display:inline-flex;align-items:center;width:max-content;padding:3px 7px;border:1px solid color-mix(in srgb,var(--mode-accent) 68%,white);background:color-mix(in srgb,var(--mode-accent) 20%,transparent);color:#fff!important;font-size:9px!important;font-weight:900;letter-spacing:.1em!important;line-height:1.1}
+.mode-simulator .brand.compact{flex-direction:row;flex-wrap:wrap}.mode-simulator .brand.compact .mode-badge{margin-left:7px}
+.mode-simulator .step-kicker,.mode-simulator .action-card-index,.mode-simulator .action-card-copy b,.mode-simulator .decision-context button,.mode-simulator .next-situation-button{color:var(--mode-accent)}
+.mode-simulator .step-action-card:hover:not(:disabled),.mode-simulator .step-action-card:focus-visible{border-color:var(--mode-accent);box-shadow:inset 4px 0 0 var(--mode-accent)}
+.mode-simulator .action-card-code,.mode-simulator .detail-code{border-color:color-mix(in srgb,var(--mode-accent) 48%,#b7c4c2);color:var(--mode-accent)}
+.mode-simulator .single-action-budget strong,.mode-simulator .project-cockpit-tools b{color:var(--mode-accent)}
+.mode-simulator .primary,.final-result-framework .primary{background:var(--mode-accent);color:var(--mode-accent-contrast);box-shadow:0 5px 0 var(--mode-accent-hover)}
+.mode-simulator .primary:hover:not(:disabled),.final-result-framework .primary:hover:not(:disabled){background:var(--mode-accent-hover);box-shadow:0 7px 0 color-mix(in srgb,var(--mode-accent-hover) 76%,black)}
+.mode-simulator .action-detail-dialog,.mode-simulator .action-confirm-dialog,.mode-simulator .canonical-result-dialog,.mode-simulator .scenario-choice-dialog{border-top-color:var(--mode-accent)}
+
+/* PROJECT keeps LIGHT's six-action cockpit; deeper information opens on demand. */
+.project-cockpit-tools{display:flex;gap:8px;margin-bottom:8px}
+.project-cockpit-tools button{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:180px;padding:9px 12px;border:1px solid #aebbb8;background:#f8f6f0;color:var(--ink);font-size:13px;font-weight:800;cursor:pointer}
+.project-cockpit-tools button:hover{border-color:var(--mode-accent);background:var(--mode-accent-soft)}
+.project-detail-dialog{width:min(820px,100%)}
+.project-information-dialog{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:18px 22px 22px}
+.project-information-dialog article{min-height:90px;padding:14px 16px;border:1px solid var(--line);background:#fff}
+.project-information-dialog article.is-known{border-color:color-mix(in srgb,var(--mode-accent) 55%,var(--line));background:color-mix(in srgb,var(--mode-accent-soft) 50%,white)}
+.project-information-dialog strong{font-size:15px}.project-information-dialog p{margin:7px 0 0;color:#536568;font-size:14px;line-height:1.55}
+.project-dialog-empty{margin:0;padding:0 22px 22px;color:var(--muted);font-size:15px}
+.project-extra-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:20px 22px 24px}
+.project-extra-metrics article{position:relative;overflow:hidden;padding:18px;background:#fff}
+.project-extra-metrics span,.project-extra-metrics strong,.project-extra-metrics small{display:block}.project-extra-metrics span{font-size:13px}.project-extra-metrics strong{margin-top:7px;font-size:18px}.project-extra-metrics small{margin-top:4px;color:var(--muted);font-size:13px}.project-extra-metrics i{position:absolute;bottom:0;left:0;height:4px;background:var(--mode-accent)}
+.stateful-canonical-shell .decision-step-inner{width:min(1120px,100%)}
+.stateful-canonical-shell .cockpit-situation-summary{max-height:132px;overflow:auto}
+
+/* Final Result Framework: shared conclusion -> reason -> learning structure. */
+.final-result-framework{min-height:100vh;padding-bottom:90px;background:#ece9e1;color:var(--ink)}
+.final-result-topbar{position:sticky;z-index:20;top:0;display:flex;align-items:center;height:58px;padding:0 clamp(20px,4vw,58px);border-bottom:3px solid var(--mode-accent);background:var(--navy);color:#fff}
+.final-result-topbar>div{display:flex;align-items:center;gap:12px}.final-result-topbar strong{font-size:13px;letter-spacing:.08em}
+.final-result-hero{display:grid;grid-template-columns:280px minmax(0,1fr);width:min(1160px,calc(100% - 48px));margin:0 auto;padding:54px 0 34px;border-bottom:1px solid #bbc1bb}
+.final-result-score{display:grid;align-content:center;justify-items:center;min-height:270px;background:var(--navy);color:#fff;box-shadow:inset 0 6px var(--mode-accent)}
+.final-result-score>span{color:#b8c8c6;font-size:12px;font-weight:900;letter-spacing:.14em}.final-result-score>strong{margin-top:5px;color:var(--mode-accent);font-family:var(--font-geist-mono);font-size:86px;line-height:1}.final-result-score>small{color:#b7c4c3;font-size:14px}.final-result-score>b{margin-top:16px;padding:6px 11px;border:1px solid var(--mode-accent);color:#fff;font-size:12px;letter-spacing:.12em}
+.final-result-score>em{margin-top:8px;color:#d5dfde;font-size:14px;font-style:normal;font-weight:700}
+.final-result-verdict{padding:8px 0 8px 40px}.final-result-verdict>p:first-child,.final-result-section>header p,.final-score-breakdown>header p{margin:0;color:var(--mode-accent);font-size:12px;font-weight:900;letter-spacing:.15em}.final-result-verdict h1{margin:8px 0 20px;font:500 clamp(34px,4.5vw,54px)/1.35 "Yu Mincho",serif}
+.final-style{padding:16px 20px;border-left:5px solid var(--mode-accent);background:var(--mode-accent-soft)}.final-style span{display:block;color:#5d6b6e;font-size:11px;font-weight:900;letter-spacing:.12em}.final-style strong{display:block;margin-top:5px;color:var(--mode-accent-hover);font-family:var(--font-geist-mono);font-size:24px}.final-style p{margin:6px 0 0;font-size:15px;line-height:1.7}.final-result-summary{margin:16px 0 0;color:#576a6d;font-size:15px;line-height:1.7}
+.final-result-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;width:min(1160px,calc(100% - 48px));margin:28px auto 0;background:var(--line)}.final-result-metrics article{position:relative;overflow:hidden;min-height:96px;padding:16px;background:#fbf9f3}.final-result-metrics span,.final-result-metrics strong,.final-result-metrics small{display:block}.final-result-metrics span{font-size:13px}.final-result-metrics strong{margin-top:7px;font-size:17px}.final-result-metrics small{position:absolute;right:15px;top:36px;color:#7b8889;font-family:var(--font-geist-mono);font-size:13px}.final-result-metrics i{position:absolute;bottom:0;left:0;height:4px;background:var(--teal)}
+.final-score-breakdown,.final-result-body,.final-result-actions{width:min(1160px,calc(100% - 48px));margin-right:auto;margin-left:auto}.final-score-breakdown{display:grid;grid-template-columns:280px 1fr;gap:28px;margin-top:42px;padding:28px 0;border-top:1px solid #bcc2bc;border-bottom:1px solid #bcc2bc}.final-score-breakdown h2{margin:8px 0 0;font:500 26px "Yu Mincho",serif}.final-score-breakdown>div{display:grid;gap:8px}.final-score-breakdown article{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:7px 12px;align-items:center}.final-score-breakdown article span{font-size:14px;font-weight:800}.final-score-breakdown article span small{margin-left:8px;color:var(--muted);font-size:11px}.final-score-breakdown article strong{color:var(--mode-accent);font-family:var(--font-geist-mono);font-size:18px;text-align:right}.final-score-breakdown article>i{grid-column:1/-1;height:4px;overflow:hidden;background:#d8d8d1}.final-score-breakdown article>i b{display:block;height:100%;background:var(--mode-accent)}
+.final-result-section{margin-top:58px;padding-top:28px;border-top:1px solid #bcc2bc}.final-result-section>header h2{margin:8px 0 25px;font:500 32px "Yu Mincho",serif}.final-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.final-review-grid article{min-height:160px;padding:24px;background:var(--cream)}.final-review-grid article>span{color:var(--mode-accent);font-size:12px;font-weight:900}.final-review-grid article>strong{display:block;margin-top:12px;font-size:21px}.final-review-grid p,.final-review-grid li{font-size:15px;line-height:1.7}.final-review-grid ul{padding-left:20px}
+.final-pmbok-list{display:grid;gap:10px}.final-pmbok-list article{display:grid;grid-template-columns:240px 1fr;gap:24px;padding:20px 24px;background:var(--cream)}.final-pmbok-list strong{font-size:17px}.final-pmbok-list p{margin:0;font-size:16px;line-height:1.75}.final-takeaways{display:grid;grid-template-columns:1fr 1fr;gap:8px 34px;margin:0;padding:24px 28px 24px 48px;background:var(--cream)}.final-takeaways li{font-size:16px;line-height:1.65}.final-result-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:54px}.final-result-actions button{min-width:180px}
+.final-result-framework .decision-chain>div,.final-result-framework .v2-decision-timeline article{border-left-color:var(--mode-accent)}.final-result-framework .v2-decision-timeline article>b,.final-result-framework .v2-decision-timeline span{color:var(--mode-accent)}
+
+@media (max-width:760px){
+  .project-cockpit-tools{flex-direction:column}.project-cockpit-tools button{width:100%}.project-information-dialog,.project-extra-metrics{grid-template-columns:1fr}
+  .final-result-hero{grid-template-columns:1fr;width:calc(100% - 32px);padding-top:32px}.final-result-score{min-height:220px}.final-result-verdict{padding:28px 0 0}.final-result-metrics{grid-template-columns:repeat(2,minmax(0,1fr));width:calc(100% - 32px)}.final-result-metrics article:last-child{grid-column:1/-1}.final-score-breakdown,.final-result-body,.final-result-actions{width:calc(100% - 32px)}.final-score-breakdown{grid-template-columns:1fr}.final-review-grid,.final-takeaways{grid-template-columns:1fr}.final-pmbok-list article{grid-template-columns:1fr;gap:7px}.final-result-actions{align-items:stretch;flex-direction:column}.final-result-actions button{width:100%}
 }
 
 /* Simulation experience v2 */

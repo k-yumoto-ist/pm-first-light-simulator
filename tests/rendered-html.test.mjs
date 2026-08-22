@@ -62,10 +62,11 @@ test("uses the stateful five-turn template with a broad investigation space", as
 });
 
 test("renders the stateful scenario through the canonical LIGHT cockpit", async () => {
-  const [runner, cockpit, result, accessibleDialog] = await Promise.all([
+  const [runner, cockpit, result, finalResult, accessibleDialog] = await Promise.all([
     readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
     readFile(new URL("app/components/SimulatorCockpit.tsx", root), "utf8"),
     readFile(new URL("app/components/ResultStep.tsx", root), "utf8"),
+    readFile(new URL("app/components/FinalResultFramework.tsx", root), "utf8"),
     readFile(new URL("app/components/AccessibleDialog.tsx", root), "utf8"),
   ]);
   assert.match(runner, /<SimulatorCockpit/);
@@ -75,9 +76,16 @@ test("renders the stateful scenario through the canonical LIGHT cockpit", async 
   assert.match(runner, /<ProjectLog/);
   assert.match(runner, /presentation="dialog"/);
   assert.match(runner, /ScenarioActionExplorer/);
+  assert.doesNotMatch(runner, /<FlowSteps/);
+  assert.doesNotMatch(runner, /sideContent=/);
+  assert.match(runner, /showInformation/);
+  assert.match(runner, /showProjectDetails/);
+  assert.match(runner, /<FinalResultFramework mode="project"/);
   assert.doesNotMatch(runner, /phase === "situation"|phase === "decision"|phase === "result"/);
   assert.match(cockpit, /canonical-cockpit-grid/);
   assert.match(result, /presentation === "dialog"/);
+  assert.match(finalResult, /PROJECT SCORE/);
+  assert.match(finalResult, /YOUR PM STYLE/);
   assert.match(accessibleDialog, /event\.key !== "Tab"/);
   assert.match(accessibleDialog, /previousFocusRef/);
 });
@@ -88,6 +96,7 @@ test("keeps the light-mode decision loop intact", async () => {
   ]);
   assert.match(page, /<SimulatorHub/);
   assert.match(hub, /<PMSimulator/);
+  assert.match(hub, /modeThemes\.light\.className/);
   assert.match(simulator, /<FlowSteps/);
   assert.match(simulator, /flowStep === "situation".*<SituationStep/s);
   assert.match(simulator, /flowStep === "decision".*<DecisionStep/s);
@@ -97,6 +106,7 @@ test("keeps the light-mode decision loop intact", async () => {
   assert.match(simulator, /setShowContacts\(false\);\s*setSelected\(personId\)/);
   assert.match(simulator, /log\.turn === game\.turn/);
   assert.match(simulator, /<ProjectLog/);
+  assert.match(simulator, /<FinalResultFramework mode="light"/);
   assert.match(decisionStep, /<SimulatorCockpit/);
   assert.match(cockpit, /<ProjectMetrics/);
   assert.match(cockpit, /<ActionGrid/);
@@ -109,15 +119,18 @@ test("keeps the light-mode decision loop intact", async () => {
 });
 
 test("keeps v2 scenarios data-driven and separates learning from behavior review", async () => {
-  const [hub, runner, types, scenarioIndex, scope, schedule, resources, stakeholders] = await Promise.all([
-    readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"), readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"), readFile(new URL("src/data/types.ts", root), "utf8"), readFile(new URL("src/data/scenarios/index.ts", root), "utf8"), readFile(new URL("src/data/scenarios/scope-change.ts", root), "utf8"), readFile(new URL("src/data/scenarios/schedule-crisis.ts", root), "utf8"), readFile(new URL("src/data/scenarios/keyperson-exit.ts", root), "utf8"), readFile(new URL("src/data/scenarios/stakeholder-conflict.ts", root), "utf8"),
+  const [hub, runner, finalResult, themes, types, scenarioIndex, scope, schedule, resources, stakeholders] = await Promise.all([
+    readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"), readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"), readFile(new URL("app/components/FinalResultFramework.tsx", root), "utf8"), readFile(new URL("app/data/modeThemes.ts", root), "utf8"), readFile(new URL("src/data/types.ts", root), "utf8"), readFile(new URL("src/data/scenarios/index.ts", root), "utf8"), readFile(new URL("src/data/scenarios/scope-change.ts", root), "utf8"), readFile(new URL("src/data/scenarios/schedule-crisis.ts", root), "utf8"), readFile(new URL("src/data/scenarios/keyperson-exit.ts", root), "utf8"), readFile(new URL("src/data/scenarios/stakeholder-conflict.ts", root), "utf8"),
   ]);
   assert.match(hub, /<AdvancedSimulator/);
-  assert.match(hub, /mode-\$\{view\}/);
+  assert.match(hub, /modeThemeStyle/);
   assert.match(hub, /window\.scrollTo/);
   assert.match(runner, /WHAT HAPPENED/);
   assert.match(runner, /PMBOK REVIEW/);
-  assert.match(runner, /YOUR PM STYLE/);
+  assert.match(runner, /<FinalResultFramework mode=\{mode\}/);
+  assert.match(finalResult, /YOUR PM STYLE/);
+  assert.match(themes, /light:[\s\S]*training:[\s\S]*project:/);
+  assert.match(themes, /--mode-accent/);
   assert.match(types, /interface ProjectState/);
   assert.match(types, /interface HiddenState/);
   assert.match(types, /interface BehaviorStandardEvidence/);

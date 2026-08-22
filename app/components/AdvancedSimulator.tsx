@@ -8,6 +8,8 @@ import type { BehaviorStandardEvidence, Difficulty, HiddenState, ProjectState, S
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
 import { scopeChangeSimulation } from "@/src/data/scenarios/scope-change-simulation";
 import StatefulScenarioRunner from "./StatefulScenarioRunner";
+import { modeThemes, modeThemeStyle } from "../data/modeThemes";
+import { FinalResultFramework, FinalResultSection, type PMStyle } from "./FinalResultFramework";
 
 type Phase = "briefing" | "situation" | "decision" | "result" | "final";
 
@@ -53,13 +55,14 @@ function changeSymbol(key: keyof ProjectState, delta: number) {
 }
 
 export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {
+  const theme = mode === "project" ? modeThemes.project : modeThemes.training;
   if (mode === "project" && scenarioId === "scope-change") {
-    return <div className="mode-simulator mode-project"><StatefulScenarioRunner scenario={scopeChangeSimulation} difficulty={difficulty} onExit={onExit} /></div>;
+    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={scopeChangeSimulation} difficulty={difficulty} onExit={onExit} /></div>;
   }
-  return <div className={`mode-simulator mode-${mode}`}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} onExit={onExit} /></div>;
+  return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} mode={mode} onExit={onExit} /></div>;
 }
 
-function LegacyAdvancedSimulator({ scenarioId, difficulty, onExit }: { scenarioId: string; difficulty: Difficulty; onExit: () => void }) {
+function LegacyAdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {
   const scenario = scenarioById[scenarioId];
   const [phase, setPhase] = useState<Phase>("briefing");
   const [eventIndex, setEventIndex] = useState(0);
@@ -108,46 +111,33 @@ function LegacyAdvancedSimulator({ scenarioId, difficulty, onExit }: { scenarioI
     const nextTags = scenario.opportunityBehaviorTags.filter((tag) => !seenTags.has(tag)).slice(0, 4);
     const otherDomains = (Object.keys(pmbokDomains) as Array<keyof typeof pmbokDomains>)
       .filter((domain) => domain !== scenario.primaryDomain && !scenario.relatedDomains.includes(domain));
+    const outcomeValues = visibleMetrics.map(([key, value]) => key === "riskExposure" ? 100 - value : value);
+    const outcomeScore = Math.round(outcomeValues.reduce((sum, value) => sum + value, 0) / outcomeValues.length);
+    const evidenceTotal = [...evidenceWeights.values()].reduce((sum, value) => sum + value, 0);
+    const processScore = Math.min(100, Math.round(evidenceTotal / Math.max(1, records.length * 4) * 100));
+    const totalScore = Math.round(outcomeScore * .6 + processScore * .4);
+    const styleTag = seen[0]?.[0] ?? "";
+    const style: PMStyle = styleTag.includes("risk") || styleTag.includes("contingency")
+      ? { code: "RISK CONTROLLER", description: "不確実性を早めに捉え、対応の選択肢を持とうとする判断が多く見られました。" }
+      : styleTag.includes("stakeholder") || styleTag.includes("consensus") || styleTag.includes("expectation")
+        ? { code: "CONSENSUS BUILDER", description: "関係者の期待を整理し、合意できる着地点を探る判断が多く見られました。" }
+        : styleTag.includes("team") || styleTag.includes("knowledge")
+          ? { code: "TEAM PROTECTOR", description: "チームの継続性や知識を守る判断が多く見られました。" }
+          : styleTag.includes("schedule") || styleTag.includes("critical_path") || styleTag.includes("recovery")
+            ? { code: "DELIVERY FIRST", description: "期限と実現可能性を具体化し、着地までの道筋を守る判断が多く見られました。" }
+            : { code: "VALUE BALANCER", description: "価値・品質・納期のバランスから着地点を探る判断が多く見られました。" };
 
-    return (
-      <main className="v2-report-shell">
-        <header className="v2-sim-header"><div><strong>PROJECT: FIRST LIGHT</strong><span>PLAY REVIEW</span></div><button onClick={onExit}>MODE SELECT</button></header>
-        <article className="v2-report">
-          <p className="v2-kicker">PROJECT RESULT</p>
-          <h1>{scenario.title} — プロジェクトの着地点</h1>
-          <p className="v2-report-intro">点数ではなく、あなたの判断がプロジェクトへ残した変化を振り返ります。</p>
-          <div className="v2-final-metrics">
-            {visibleMetrics.map(([key, value]) => <div key={key}><span>{metricLabels[key]}</span><strong>{metricStatus(key, value)}</strong><i style={{ width: `${value}%` }} /></div>)}
-          </div>
-
-          <section className="v2-report-section">
-            <p className="v2-kicker">YOUR DECISIONS</p><h2>あなたが選んだ判断</h2>
-            <div className="v2-decision-timeline">{records.map((item, index) => <article key={`${item.eventTitle}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><div><span>{item.eventTitle}</span><h3>{item.choiceTitle}</h3><p>{item.feedback.whatHappened}</p>{item.consequence && <small>{item.consequence}</small>}</div></article>)}</div>
-          </section>
-
-          <section className="v2-report-section v2-pmbok-review">
-            <p className="v2-kicker">PMBOK REVIEW</p><h2>今回、判断する機会があった領域</h2>
-            {[scenario.primaryDomain, ...scenario.relatedDomains].map((domain) => <div key={domain}><strong>{pmbokDomains[domain].label}</strong><p>{pmbokDomains[domain].description}</p></div>)}
-          </section>
-
-          <section className="v2-report-section v2-style-review">
-            <p className="v2-kicker">YOUR PM STYLE</p><h2>今回のプレイで見られたPM行動</h2>
-            <div className="v2-style-columns">
-              <div><h3>今回見られた行動</h3><ul>{seen.length ? seen.map(([tag, weight]) => <li key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><span>{weight > 1 ? "複数の判断で確認されました" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</span></li>) : <li><span>今回の選択から明確に確認できる行動はありませんでした。</span></li>}</ul></div>
-              <div><h3>さらに試したい行動</h3><ul>{nextTags.length ? nextTags.map((tag) => <li key={tag}><strong>{pmBehaviorStandards[tag].label}</strong><span>{pmBehaviorStandards[tag].actions[0]}</span></li>) : <li><span>別の選択肢も試し、結果の違いを確かめてみましょう。</span></li>}</ul></div>
-            </div>
-            <p className="v2-not-observed">{otherDomains.map((domain) => pmbokDomains[domain].label).join(" / ")} は、今回のシナリオでは確認する機会がありませんでした。</p>
-          </section>
-          <div className="v2-report-actions"><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>LIGHT MODEへ戻る</button></div>
-        </article>
-      </main>
-    );
+    return <FinalResultFramework mode={mode} title={`${scenario.title} — プロジェクトの着地点`} score={totalScore} style={style} summary="最終状態と、判断の過程で確認できたPM行動を合わせたプロジェクト運営全体の指標です。" metrics={visibleMetrics.slice(0, 5).map(([key, value]) => ({ label: metricLabels[key], value: key === "riskExposure" ? 100 - value : value, status: metricStatus(key, value) }))} breakdown={[{ label: "Project Outcome", score: outcomeScore, weight: "60%" }, { label: "Decision Process", score: processScore, weight: "40%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>LIGHT MODEへ戻る</button></>}>
+      <FinalResultSection eyebrow="YOUR DECISIONS" title="あなたが選んだ判断"><div className="v2-decision-timeline">{records.map((item, index) => <article key={`${item.eventTitle}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><div><span>{item.eventTitle}</span><h3>{item.choiceTitle}</h3><p>{item.feedback.whatHappened}</p>{item.consequence ? <small>{item.consequence}</small> : null}</div></article>)}</div></FinalResultSection>
+      <FinalResultSection eyebrow="PM REVIEW" title="今回のプレイで見られたPM行動"><div className="v2-style-columns"><div><h3>今回見られた行動</h3><ul>{seen.length ? seen.map(([tag, weight]) => <li key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><span>{weight > 1 ? "複数の判断で確認されました" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</span></li>) : <li><span>今回の選択から明確に確認できる行動はありませんでした。</span></li>}</ul></div><div><h3>さらに試したい行動</h3><ul>{nextTags.length ? nextTags.map(tag => <li key={tag}><strong>{pmBehaviorStandards[tag].label}</strong><span>{pmBehaviorStandards[tag].actions[0]}</span></li>) : <li><span>別の選択肢も試し、結果の違いを確かめてみましょう。</span></li>}</ul></div></div><p className="v2-not-observed">{otherDomains.map(domain => pmbokDomains[domain].label).join(" / ")} は、今回のシナリオでは確認する機会がありませんでした。</p></FinalResultSection>
+      <FinalResultSection eyebrow="PMBOK REVIEW" title="今回、判断する機会があった領域"><div className="stateful-domain-review">{[scenario.primaryDomain, ...scenario.relatedDomains].map(domain => <div key={domain}><strong>{pmbokDomains[domain].label}</strong><p>{pmbokDomains[domain].description}</p></div>)}</div></FinalResultSection>
+    </FinalResultFramework>;
   }
 
   return (
     <main className="v2-sim-shell">
       <header className="v2-sim-header">
-        <div><strong>PROJECT: FIRST LIGHT</strong><span>{scenario.title}</span></div>
+        <div><strong>PROJECT: FIRST LIGHT</strong><span>{scenario.title}</span><small className="mode-badge">{mode === "training" ? "TRAINING MODE" : "PROJECT SCENARIO"}</small></div>
         <nav aria-label="進行状況"><i className={phase === "briefing" || phase === "situation" ? "active" : "done"}>1 状況</i><i className={phase === "decision" ? "active" : phase === "result" ? "done" : ""}>2 判断</i><i className={phase === "result" ? "active" : ""}>3 結果</i></nav>
         <button onClick={onExit}>終了</button>
       </header>

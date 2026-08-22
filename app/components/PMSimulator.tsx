@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { ActionConfirmDialog, type ActionConfirmation } from "./ActionConfirmDialog";
 import { ActionDetailModal } from "./ActionDetailModal";
 import { DecisionStep } from "./DecisionStep";
 import { FlowSteps, type FlowStep } from "./FlowSteps";
 import { ProjectLog } from "./ProjectLog";
 import { ResultStep } from "./ResultStep";
+import { FinalResultFramework, FinalResultSection, type PMStyle } from "./FinalResultFramework";
 import { SituationStep } from "./SituationStep";
 import { characters } from "../data/characters";
 import { decisionResultCopy, learningByArea, pmActions, type PMActionDefinition } from "../data/actions";
@@ -35,14 +36,15 @@ const initialFlags: GameFlags = {
 };
 const initialMetrics: Metrics = { schedule: 78, quality: 76, trust: 70, team: 78, scopeStability: 58, riskExposure: 52, stakeholderAlignment: 42 };
 const scoreLabels: Record<ScoreKey, string> = { scope: "Scope Management", schedule: "Schedule Management", stakeholder: "Stakeholder Management", risk: "Risk Management" };
-const metricLabels: Record<keyof Metrics, string> = { schedule: "Schedule", quality: "Quality", trust: "Customer Trust", team: "Team Condition", scopeStability: "Scope Clarity", riskExposure: "Risk Exposure", stakeholderAlignment: "Stakeholder Alignment" };
 
 function makeInitialState(): GameState {
   return { phase: "intro", turn: 1, actionsLeft: 3, metrics: { ...initialMetrics }, flags: { ...initialFlags }, chats: { sato: [], takahashi: [], tanaka: [], suzuki: [] }, logs: [], asked: [], turnNotice: turns[0].situation };
 }
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 const statusFor = (value: number) => value >= 78 ? "順調" : value >= 60 ? "注意" : value >= 42 ? "遅延" : "危険";
-const riskStatus = (value: number) => value <= 30 ? "低" : value <= 58 ? "中" : "高";
+const subscribeToStoredScore = () => () => {};
+const getStoredScoreSnapshot = () => { try { return localStorage.getItem("pm-simulator-last-score"); } catch { return null; } };
+const getServerScoreSnapshot = () => null;
 function applyEffect(state: GameState, effect?: Effect): GameState {
   if (!effect) return state;
   const metrics = { ...state.metrics };
@@ -51,12 +53,6 @@ function applyEffect(state: GameState, effect?: Effect): GameState {
 }
 function getChanges(before: Metrics, after: Metrics): MetricChange[] {
   return (Object.keys(before) as (keyof Metrics)[]).filter(key => before[key] !== after[key]).map(key => ({ key, before: before[key], after: after[key] }));
-}
-
-function KPI({ label, value, inverse = false }: { label: string; value: number; inverse?: boolean }) {
-  const status = inverse ? riskStatus(value) : statusFor(value);
-  const progress = inverse ? 100 - value : value;
-  return <article className="top-kpi"><div><span>{label}</span><strong className={`status status-${status}`}>{status}</strong></div><div className="meter"><i style={{ width: `${progress}%` }} /></div></article>;
 }
 
 export default function PMSimulator() {
@@ -73,9 +69,10 @@ export default function PMSimulator() {
   const [recentChanges, setRecentChanges] = useState<MetricChange[]>([]);
   const [showScenarioChoices, setShowScenarioChoices] = useState(false);
   const [confirmAdvance, setConfirmAdvance] = useState(false);
-  const [previousScores, setPreviousScores] = useState<Record<ScoreKey, number> | null>(null);
-
-  useEffect(() => { try { const raw = localStorage.getItem("pm-simulator-last-score"); if (raw) setPreviousScores(JSON.parse(raw)); } catch {} }, []);
+  const storedScoresRaw = useSyncExternalStore(subscribeToStoredScore, getStoredScoreSnapshot, getServerScoreSnapshot);
+  const storedScores = useMemo<Record<ScoreKey, number> | null>(() => { try { return storedScoresRaw ? JSON.parse(storedScoresRaw) : null; } catch { return null; } }, [storedScoresRaw]);
+  const [sessionPreviousScores, setPreviousScores] = useState<Record<ScoreKey, number> | null>(null);
+  const previousScores = sessionPreviousScores ?? storedScores;
   const scores = useMemo(() => calculateScores(game), [game]);
   const feedback = useMemo(() => buildFeedback(game), [game]);
   const turn = turns[game.turn - 1];
@@ -278,7 +275,32 @@ export default function PMSimulator() {
     const biggest = game.logs.filter(log => log.kind === "action").sort((a, b) => b.changes.reduce((sum, item) => sum + Math.abs(item.after - item.before), 0) - a.changes.reduce((sum, item) => sum + Math.abs(item.after - item.before), 0))[0];
     const addressed = [game.flags.decisionMakerKnown && "意思決定者を特定", game.flags.apiRiskKnown && "外部APIリスクを把握", game.flags.juniorProgressChecked && "若手の遅れを確認", game.flags.impactAnalysisDone && "追加要望の影響を分析"].filter(Boolean) as string[];
     const missed = [!game.flags.decisionMakerKnown && "決裁者との合意", !game.flags.apiRiskKnown && "外部APIの事前確認", !game.flags.juniorProgressChecked && "若手メンバーの早期フォロー", !game.flags.impactAnalysisDone && "追加要望の影響分析"].filter(Boolean) as string[];
-    return <main className="result-page"><header className="result-hero"><p className="eyebrow">PROJECT RESULT</p><h1>{releaseSuccess ? "プロジェクトは着地しました。" : "厳しい着地になりました。"}</h1><p>点数だけでなく、どの判断がこの結果を作ったかを振り返りましょう。</p></header><section className="result-summary"><div className="result-seal"><small>YOUR PM SCORE</small><strong>{avg}</strong><span>/ 100</span></div><div className="outcomes"><div><span>リリース</span><strong>{releaseSuccess ? "成功" : "課題を残して完了"}</strong></div><div><span>納期</span><strong>{statusFor(game.metrics.schedule)}</strong></div><div><span>品質</span><strong>{statusFor(game.metrics.quality)}</strong></div><div><span>顧客信頼</span><strong>{statusFor(game.metrics.trust)}</strong></div><div><span>チーム状態</span><strong>{statusFor(game.metrics.team)}</strong></div></div></section><section className="score-grid">{(Object.keys(scores) as ScoreKey[]).map(key => <article key={key}><div><span>{scoreLabels[key]}</span><strong>{scores[key]}</strong></div><div className="score-meter"><i style={{ width: `${scores[key]}%` }} /></div>{previousScores && <small className={scores[key] >= previousScores[key] ? "up" : "down"}>前回 {previousScores[key]} → 今回 {scores[key]}</small>}</article>)}</section><section className="behavior-review"><div className="section-heading"><p className="eyebrow">YOUR PM BEHAVIOR</p><h2>あなたが取ったPM行動</h2></div><div className="behavior-grid"><article><span>よく選んだ行動</span><strong>{frequent}</strong><p>今回の判断傾向を表しています。</p></article><article><span>対応できた問題</span><ul>{addressed.length ? addressed.map(item => <li key={item}>{item}</li>) : <li>明確に対応できた問題はありませんでした</li>}</ul></article><article><span>放置した問題</span><ul>{missed.length ? missed.map(item => <li key={item}>{item}</li>) : <li>主要な問題へ対応できました</li>}</ul></article><article><span>影響が大きかった判断</span><strong>{biggest?.label || "—"}</strong><p>{biggest?.why || "記録なし"}</p></article></div></section><section className="reflection"><div className="section-heading"><p className="eyebrow">FROM EXPERIENCE TO PMBOK</p><h2>あなたの行動を、PMBOKで言語化する</h2></div><div className="feedback-list">{feedback.map(item => <article key={item.area} className={item.positive ? "positive" : "lesson"}><div className="feedback-area">{scoreLabels[item.area]}</div><div><h3>{item.title}</h3><p>{item.story}</p><p className="pmbok"><b>PMBOKの観点</b>{item.lesson}</p></div></article>)}</div></section><div className="result-log"><ProjectLog logs={game.logs} /></div><section className="takeaways"><div><p className="eyebrow">THE BASICS</p><h2>今回学んだPMの基本</h2></div><ul><li>誰が意思決定者なのかを確認する</li><li>要望をそのまま受けず影響を見る</li><li>スケジュールは定期的に確認する</li><li>リスクは問題になる前に考える</li><li>プロジェクトは人との合意形成で進む</li></ul></section><section className="retry"><h2>別の判断で、もう一度挑戦しますか？</h2><p>前回と違う人に、違う質問をすると、その先の状況が変わります。</p><button className="primary large" onClick={restart}>別の判断でリトライ <span>↻</span></button></section></main>;
+    const styleByArea: Record<ScoreKey, PMStyle> = {
+      scope: { code: "VALUE BALANCER", description: "顧客価値・品質・納期のバランスを見ながら、実現する範囲を整える判断が多く見られました。" },
+      schedule: { code: "DELIVERY FIRST", description: "進捗と残作業を具体化し、着地までの道筋を守ろうとする判断が多く見られました。" },
+      stakeholder: { code: "CONSENSUS BUILDER", description: "関係者の期待と決定構造を確かめ、合意をつくる判断が多く見られました。" },
+      risk: { code: "RISK CONTROLLER", description: "不確実性を早めに捉え、問題になる前に選択肢を持とうとする判断が多く見られました。" },
+    };
+    const style = game.metrics.team >= 75 && scores.schedule >= 70
+      ? { code: "TEAM PROTECTOR", description: "納期だけでなく、チームが継続して動ける状態を守る判断が多く見られました。" } as PMStyle
+      : styleByArea[ordered[0]];
+    const finalMetrics = [
+      { label: "Schedule", value: game.metrics.schedule, status: statusFor(game.metrics.schedule) },
+      { label: "Quality", value: game.metrics.quality, status: statusFor(game.metrics.quality) },
+      { label: "Customer Trust", value: game.metrics.trust, status: statusFor(game.metrics.trust) },
+      { label: "Team", value: game.metrics.team, status: statusFor(game.metrics.team) },
+      { label: "Risk", value: 100 - game.metrics.riskExposure, status: statusFor(100 - game.metrics.riskExposure) },
+    ];
+    const previousTotal = previousScores
+      ? Math.round(Object.values(previousScores).reduce((sum, score) => sum + score, 0) / 4)
+      : undefined;
+    return <FinalResultFramework mode="light" title={releaseSuccess ? "プロジェクトは着地しました。" : "課題を残す着地になりました。"} score={avg} previousScore={previousTotal} style={style} summary="4つのPM観点に基づく既存スコアを、プロジェクト運営全体の振り返りとして表示しています。" metrics={finalMetrics} breakdown={(Object.keys(scores) as ScoreKey[]).map(key => ({ label: scoreLabels[key], score: scores[key] }))} actions={<button className="primary large" onClick={restart}>別の判断でリトライ <span>↻</span></button>}>
+      <FinalResultSection eyebrow="PROJECT OUTCOME" title="今回の判断で、何を動かしたか"><div className="final-review-grid"><article><span>よく選んだ行動</span><strong>{frequent}</strong><p>今回の判断傾向を表しています。</p></article><article><span>対応できた問題</span><ul>{addressed.length ? addressed.map(item => <li key={item}>{item}</li>) : <li>明確に対応できた問題はありませんでした</li>}</ul></article><article><span>次に確認したい観点</span><ul>{missed.length ? missed.map(item => <li key={item}>{item}</li>) : <li>主要な問題へ対応できました</li>}</ul></article><article><span>影響が大きかった判断</span><strong>{biggest?.label || "—"}</strong><p>{biggest?.why || "記録なし"}</p></article></div></FinalResultSection>
+      <FinalResultSection eyebrow="DECISION CHAIN" title="主要な判断と結果"><ProjectLog logs={game.logs} initialLimit={4} /></FinalResultSection>
+      <FinalResultSection eyebrow="PM REVIEW" title="今回見られた行動"><div className="feedback-list">{feedback.map(item => <article key={item.area} className={item.positive ? "positive" : "lesson"}><div className="feedback-area">{scoreLabels[item.area]}</div><div><h3>{item.title}</h3><p>{item.story}</p></div></article>)}</div></FinalResultSection>
+      <FinalResultSection eyebrow="PMBOK REVIEW" title="体験をPMBOKで言語化する"><div className="final-pmbok-list">{feedback.map(item => <article key={item.area}><strong>{scoreLabels[item.area]}</strong><p>{item.lesson}</p></article>)}</div></FinalResultSection>
+      <FinalResultSection eyebrow="NEXT PLAY" title="次に意識したいPMの基本"><ul className="final-takeaways"><li>誰が意思決定者なのかを確認する</li><li>要望をそのまま受けず影響を見る</li><li>スケジュールは定期的に確認する</li><li>リスクは問題になる前に考える</li><li>プロジェクトは人との合意形成で進む</li></ul></FinalResultSection>
+    </FinalResultFramework>;
   }
 
   const canAdvance = game.turn !== 2 || Boolean(game.requestDecision);
@@ -290,7 +312,7 @@ export default function PMSimulator() {
   const footerMessage = decisionPending && game.actionsLeft === 1 ? "最後の1Actionは、このターンの必須判断に使います。" : game.actionsLeft === 0 ? "このターンのActionを使い切りました。" : `まだ${game.actionsLeft} Actions残っています。必要な情報が足りているか確認してください。`;
   return <main className="simulation-shell">
     <header className="simulation-header">
-      <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span></div>
+      <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">LIGHT MODE</small></div>
       <div className="time-context"><span>DAY {turn.day}</span><strong>{turn.week}</strong><small>リリースまで {turn.remaining}日</small></div>
       <button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>PROJECT LOG <b>{game.logs.length}</b></button>
     </header>
