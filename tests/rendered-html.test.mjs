@@ -61,9 +61,30 @@ test("uses the stateful five-turn template with a broad investigation space", as
   assert.match(advanced, /mode === "project" && scenarioId === "scope-change"/);
 });
 
+test("renders the stateful scenario through the canonical LIGHT cockpit", async () => {
+  const [runner, cockpit, result, accessibleDialog] = await Promise.all([
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/components/SimulatorCockpit.tsx", root), "utf8"),
+    readFile(new URL("app/components/ResultStep.tsx", root), "utf8"),
+    readFile(new URL("app/components/AccessibleDialog.tsx", root), "utf8"),
+  ]);
+  assert.match(runner, /<SimulatorCockpit/);
+  assert.match(runner, /actions=\{pmActions\}/);
+  assert.match(runner, /<ActionDetailModal/);
+  assert.match(runner, /<ActionConfirmDialog/);
+  assert.match(runner, /<ProjectLog/);
+  assert.match(runner, /presentation="dialog"/);
+  assert.match(runner, /ScenarioActionExplorer/);
+  assert.doesNotMatch(runner, /phase === "situation"|phase === "decision"|phase === "result"/);
+  assert.match(cockpit, /canonical-cockpit-grid/);
+  assert.match(result, /presentation === "dialog"/);
+  assert.match(accessibleDialog, /event\.key !== "Tab"/);
+  assert.match(accessibleDialog, /previousFocusRef/);
+});
+
 test("keeps the light-mode decision loop intact", async () => {
-  const [page, hub, simulator, actions, actionDetail, confirmDialog, resultStep, projectLog] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"), readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"), readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"), readFile(new URL("app/data/actions.ts", root), "utf8"), readFile(new URL("app/components/ActionDetailModal.tsx", root), "utf8"), readFile(new URL("app/components/ActionConfirmDialog.tsx", root), "utf8"), readFile(new URL("app/components/ResultStep.tsx", root), "utf8"), readFile(new URL("app/components/ProjectLog.tsx", root), "utf8"),
+  const [page, hub, simulator, decisionStep, cockpit, actions, actionDetail, confirmDialog, resultStep, projectLog] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"), readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"), readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"), readFile(new URL("app/components/DecisionStep.tsx", root), "utf8"), readFile(new URL("app/components/SimulatorCockpit.tsx", root), "utf8"), readFile(new URL("app/data/actions.ts", root), "utf8"), readFile(new URL("app/components/ActionDetailModal.tsx", root), "utf8"), readFile(new URL("app/components/ActionConfirmDialog.tsx", root), "utf8"), readFile(new URL("app/components/ResultStep.tsx", root), "utf8"), readFile(new URL("app/components/ProjectLog.tsx", root), "utf8"),
   ]);
   assert.match(page, /<SimulatorHub/);
   assert.match(hub, /<PMSimulator/);
@@ -76,9 +97,12 @@ test("keeps the light-mode decision loop intact", async () => {
   assert.match(simulator, /setShowContacts\(false\);\s*setSelected\(personId\)/);
   assert.match(simulator, /log\.turn === game\.turn/);
   assert.match(simulator, /<ProjectLog/);
+  assert.match(decisionStep, /<SimulatorCockpit/);
+  assert.match(cockpit, /<ProjectMetrics/);
+  assert.match(cockpit, /<ActionGrid/);
   assert.match(actions, /learningByArea/);
-  assert.match(actionDetail, /event\.key !== "Tab"/);
-  assert.match(confirmDialog, /event\.key !== "Tab"/);
+  assert.match(actionDetail, /<AccessibleDialog/);
+  assert.match(confirmDialog, /<AccessibleDialog/);
   assert.match(resultStep, /PMBOK LEARNING/);
   assert.match(projectLog, /DAY \{log\.day\}/);
   assert.match(projectLog, /displayLimit/);

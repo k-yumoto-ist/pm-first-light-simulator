@@ -201,6 +201,81 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .result-page { background:linear-gradient(#10292f 0 420px,#f1eee6 420px); }.result-summary { grid-template-columns:1fr; }.result-seal { min-height:190px; }.result-seal strong { font-size:70px; }.outcomes { grid-template-columns:repeat(2,1fr); padding:14px; }.outcomes div { padding:14px; }.score-grid { grid-template-columns:1fr; }.feedback-list article { grid-template-columns:1fr; }.feedback-area { padding:15px 20px; border-right:0; border-bottom:1px solid var(--line); }.feedback-list article>div:last-child { padding:20px; }.takeaways { grid-template-columns:1fr; padding:28px; }
 }
 
+/* Canonical cockpit: PROJECT SCENARIO reuses the LIGHT MODE interaction shell. */
+.stateful-canonical-shell { --mode-accent:var(--coral); }
+.simulator-cockpit.has-side-content .decision-step-inner { width:min(1380px,100%); }
+.cockpit-situation-summary { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin:8px 0; padding:10px 14px; border-left:4px solid var(--coral); background:#f7f3e9; }
+.cockpit-situation-summary>p { max-width:900px; margin:0; color:#334d51; font-size:15px; line-height:1.55; }
+.cockpit-situation-summary>aside { flex:0 0 min(34%,380px); color:#58696c; font-size:13px; line-height:1.5; }
+.cockpit-situation-summary details summary { color:var(--teal); font-weight:800; cursor:pointer; }
+.cockpit-situation-summary details p { margin:5px 0 0; }
+.cockpit-action-budgets { display:flex; align-items:stretch; gap:7px; }
+.cockpit-action-budgets>div { min-width:112px; padding:7px 10px; border:1px solid #c7cfca; background:#f8f6f0; }
+.cockpit-action-budgets span { display:block; color:#617275; font-size:11px; font-weight:850; letter-spacing:.06em; }
+.cockpit-action-budgets strong { display:block; margin-top:2px; font-family:var(--font-geist-mono); font-size:18px; line-height:1.15; }
+.cockpit-action-budgets .is-open strong { color:var(--coral); }
+.cockpit-action-budgets .is-complete strong { color:var(--teal); }
+.canonical-cockpit-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(270px,.34fr); gap:12px; flex:1; min-height:0; }
+.canonical-action-area { display:flex; min-width:0; min-height:0; }
+.canonical-action-area .step-action-grid { width:100%; }
+.canonical-cockpit-side { min-width:0; min-height:0; }
+.cockpit-side-stack { display:flex; height:100%; min-height:0; flex-direction:column; gap:8px; }
+.cockpit-materials { display:flex; min-height:0; flex:1; flex-direction:column; overflow:hidden; background:#f8f6f0; box-shadow:inset 3px 0 0 var(--teal); }
+.cockpit-materials>header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); }
+.cockpit-materials>header h2 { margin:0; font-size:16px; }
+.cockpit-materials>header span { color:var(--teal); font-family:var(--font-geist-mono); font-size:12px; font-weight:850; }
+.cockpit-materials>div { display:grid; gap:7px; min-height:0; padding:9px 12px 12px; overflow:auto; }
+.cockpit-materials article { padding:8px 10px; background:#fff; }
+.cockpit-materials article strong { display:block; font-size:14px; line-height:1.35; }
+.cockpit-materials article p { margin:3px 0 0; color:#5b6c6f; font-size:13px; line-height:1.45; }
+.cockpit-empty-materials { color:#667679; font-size:13px; line-height:1.55; }
+.cockpit-secondary-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.cockpit-secondary-metrics>div { padding:7px 9px; background:#e9ece7; }
+.cockpit-secondary-metrics span { display:block; color:#617174; font-size:11px; }
+.cockpit-secondary-metrics strong { display:block; margin-top:2px; font-size:13px; }
+.cockpit-log-button { width:100%; padding:9px 11px; border:1px solid #859b9b; background:transparent; color:#31575a; font-size:13px; font-weight:850; cursor:pointer; }
+.cockpit-log-button:hover { background:#e6efeb; }
+.scenario-action-picker-dialog { width:min(920px,100%); max-height:calc(100dvh - 40px); overflow:auto; border-top:5px solid var(--coral); background:#f8f6f0; box-shadow:0 30px 90px rgba(0,0,0,.35); }
+.scenario-action-picker-dialog .stateful-action-explorer { height:auto; max-height:60vh; border:0; box-shadow:none; }
+.stateful-explorer-step { display:block; color:var(--teal); font-size:12px; font-weight:900; letter-spacing:.08em; }
+.canonical-result-overlay { position:fixed; inset:0; z-index:75; display:grid; place-items:center; padding:20px; background:rgba(10,29,33,.7); backdrop-filter:blur(5px); }
+.canonical-result-dialog { width:min(1080px,100%); max-height:calc(100dvh - 40px); overflow:auto; border-top:5px solid var(--coral); background:#efede7; box-shadow:0 30px 90px rgba(0,0,0,.38); }
+.canonical-result-dialog .result-step-inner { width:100%; padding:18px 22px 22px; }
+.canonical-decision-dialog .decision-choice-list button.is-selected { border-color:var(--teal); background:#e9f2ee; box-shadow:inset 4px 0 0 var(--teal); }
+.canonical-decision-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 24px 2px; }
+.canonical-decision-footer p { margin:0; color:#5b6c70; font-size:13px; }
+
+@media (min-width:1180px) and (min-height:700px) {
+  .stateful-canonical-shell .decision-step { padding:7px 18px 10px; }
+  .stateful-canonical-shell .decision-context { padding-bottom:6px; }
+  .stateful-canonical-shell .project-metrics { padding:0; }
+  .stateful-canonical-shell .metric-compact { padding-top:6px; padding-bottom:6px; }
+  .stateful-canonical-shell .decision-title { margin:7px 0; }
+  .stateful-canonical-shell .step-action-grid { gap:7px; }
+  .stateful-canonical-shell .step-action-card { min-height:0; padding:10px 12px; }
+}
+
+@media (max-width:1179px), (max-height:699px) {
+  .canonical-cockpit-grid { grid-template-columns:1fr; }
+  .canonical-cockpit-side { min-height:250px; }
+  .cockpit-materials>div { max-height:260px; }
+  .cockpit-situation-summary { align-items:stretch; flex-direction:column; gap:7px; }
+  .cockpit-situation-summary>aside { flex-basis:auto; }
+}
+
+@media (max-width:720px) {
+  .cockpit-action-budgets { width:100%; }
+  .cockpit-action-budgets>div { min-width:0; flex:1; }
+  .canonical-cockpit-grid { display:block; }
+  .canonical-cockpit-side { margin-top:12px; }
+  .cockpit-secondary-metrics { grid-template-columns:1fr 1fr; }
+  .canonical-result-overlay,.scenario-overlay { padding:8px; }
+  .canonical-result-dialog,.scenario-action-picker-dialog { max-height:calc(100dvh - 16px); }
+  .canonical-result-dialog .result-step-inner { padding:14px; }
+  .canonical-decision-footer { align-items:stretch; flex-direction:column; padding:14px 18px 2px; }
+  .canonical-decision-footer button { width:100%; }
+}
+
 /* Simulation experience v2 */
 body { overflow-x:hidden; }
 .intro-rules { max-width:760px; margin:28px auto 18px; display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); background:rgba(255,255,255,.72); text-align:left; }

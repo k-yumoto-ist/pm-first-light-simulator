@@ -19,6 +19,8 @@ export default function ScenarioActionExplorer({
   relevantActionIds,
   getAvailability,
   onSelect,
+  initialCategoryId,
+  allowCategoryReset = true,
 }: {
   categories: ScenarioActionCategory[];
   actions: ScenarioAction[];
@@ -27,8 +29,10 @@ export default function ScenarioActionExplorer({
   relevantActionIds: Set<string>;
   getAvailability: (action: ScenarioAction) => ActionAvailability;
   onSelect: (action: ScenarioAction) => void;
+  initialCategoryId?: ScenarioActionCategoryId;
+  allowCategoryReset?: boolean;
 }) {
-  const [categoryId, setCategoryId] = useState<ScenarioActionCategoryId>();
+  const [categoryId, setCategoryId] = useState<ScenarioActionCategoryId | undefined>(initialCategoryId);
   const [stakeholderId, setStakeholderId] = useState<string>();
   const actionCounts = useMemo(() => {
     const counts = new Map<ScenarioActionCategoryId, number>();
@@ -63,7 +67,7 @@ export default function ScenarioActionExplorer({
   return (
     <div className="stateful-action-explorer">
       <header>
-        <button onClick={() => { setCategoryId(undefined); setStakeholderId(undefined); }}>← 6カテゴリへ戻る</button>
+        {allowCategoryReset ? <button onClick={() => { setCategoryId(undefined); setStakeholderId(undefined); }}>← 6カテゴリへ戻る</button> : <span className="stateful-explorer-step">具体的な行動を選ぶ</span>}
         <div><b>{selectedCategory.icon}</b><span><strong>{selectedCategory.label}</strong><small>{selectedCategory.description}</small></span></div>
       </header>
 
