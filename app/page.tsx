@@ -1,5 +1,5 @@
-import PMSimulator from "./components/PMSimulator";
+import SimulatorHub from "./components/SimulatorHub";
 
 export default function Home() {
-  return <PMSimulator />;
+  return <SimulatorHub />;
 }
