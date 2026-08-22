@@ -1,4 +1,5 @@
 import type { StatefulScenarioDefinition } from "../statefulScenarioTypes";
+import { scenarioActionCategories, scopeChangeActionSpace } from "./scope-change-action-space";
 
 export const scopeChangeSimulation: StatefulScenarioDefinition = {
   id: "scope-change-simulation",
@@ -20,6 +21,7 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
     { id: "tanaka", name: "田中", role: "開発リーダー", priority: "実現可能性と品質を守りたい", avatar: "田" },
     { id: "suzuki", name: "鈴木", role: "実装担当", priority: "無理のない負荷で確実に完成させたい", avatar: "鈴" },
   ],
+  actionCategories: scenarioActionCategories,
   information: [
     { id: "request_background", label: "追加要件の背景", detail: "契約更新を検討中の大口顧客から、検索条件の追加を求められている。", source: "佐藤へのヒアリング" },
     { id: "real_priority", label: "顧客の本当の優先順位", detail: "検索条件すべてではなく、特定業種の絞り込みが最重要。", source: "佐藤への具体的な確認" },
@@ -31,21 +33,10 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
     { id: "release_option", label: "段階リリース案", detail: "最重要の検索条件だけを先行し、残りを次回へ送る案なら納期とテスト時間を両立できる。", source: "要件・スコープ整理" },
     { id: "success_criteria", label: "リリース成功条件", detail: "高橋は全機能より、既存顧客へ障害を起こさないことと契約更新への説明可能性を重視している。", source: "高橋との確認" },
   ],
-  actions: [
-    { id: "hear_sato", title: "佐藤に要望の背景を聞く", description: "要望を機能名ではなく、解決したい目的から確認します。", category: "hearing", stakeholderId: "sato", availableFromTurn: 1, grantsInformation: ["request_background", "real_priority"], result: "大口顧客の契約更新が背景にあり、最重要条件も特定できました。" },
-    { id: "check_dev", title: "田中と開発影響を確認する", description: "実装・API・テストまで含む作業影響を確認します。", category: "scope", stakeholderId: "tanaka", availableFromTurn: 1, grantsInformation: ["implementation_impact"], metricEffects: { riskExposure: -2 }, result: "『実装2日』ではなく、完了には7営業日必要だと分かりました。" },
-    { id: "check_schedule", title: "スケジュールを点検する", description: "依存関係と遅れが波及する経路を確認します。", category: "schedule", availableFromTurn: 1, grantsInformation: ["schedule_bottleneck"], result: "検索APIが総合テスト開始を左右するボトルネックだと判明しました。" },
-    { id: "hear_sales", title: "森に営業上の影響を聞く", description: "顧客関係と契約更新への実際の影響を確認します。", category: "hearing", stakeholderId: "mori", availableFromTurn: 2, grantsInformation: ["sales_context"], result: "契約更新への影響はありますが、今回の全実装はまだ約束されていません。" },
-    { id: "find_owner", title: "最終意思決定者を確認する", description: "誰が何を基準に決めるのかを明らかにします。", category: "hearing", stakeholderId: "sato", availableFromTurn: 2, grantsInformation: ["decision_owner"], setsFlags: { decisionOwnerKnown: true }, metricEffects: { stakeholderAlignment: 2 }, result: "最終判断は顧客部長の高橋が行うと分かりました。" },
-    { id: "check_team", title: "チーム状況を確認する", description: "実装担当の負荷と品質への兆候を確認します。", category: "team", stakeholderId: "suzuki", availableFromTurn: 2, grantsInformation: ["team_load"], result: "すでに残業が続き、レビュー時間が圧迫され始めていました。" },
-    { id: "prepare_option", title: "要件と代替案を整理する", description: "価値を保ちながら、今回入れる範囲を組み替えます。", category: "scope", availableFromTurn: 3, grantsInformation: ["release_option"], setsFlags: { alternativePrepared: true }, metricEffects: { riskExposure: -3 }, result: "最重要条件だけを先行する段階リリース案を作成しました。" },
-    { id: "hear_takahashi", title: "高橋に成功条件を確認する", description: "品質・納期・事業成果の優先順位を決裁者へ確認します。", category: "hearing", stakeholderId: "takahashi", availableFromTurn: 3, grantsInformation: ["success_criteria"], metricEffects: { stakeholderAlignment: 3 }, result: "高橋は全機能より、障害回避と説明可能性を重視していました。" },
-    { id: "share_impact", title: "関係者へ影響を共有する", description: "分かっている影響と未確定事項を同じ資料で共有します。", category: "report", availableFromTurn: 3, grantsInformation: [], setsFlags: { impactShared: true }, metricEffects: { trust: 2, stakeholderAlignment: 4 }, result: "顧客・営業・開発が同じ影響情報を見て議論できる状態になりました。" },
-    { id: "record_agreement", title: "合意内容を記録する", description: "今回と次回の範囲、責任者、判断条件を文書に残します。", category: "scope", availableFromTurn: 4, grantsInformation: [], setsFlags: { agreementRecorded: true }, metricEffects: { scopeStability: 4, riskExposure: -2 }, result: "決まった範囲と次の判断条件が記録され、後戻りしにくい状態になりました。" },
-  ],
+  actions: scopeChangeActionSpace,
   turns: [
     {
-      id: "request", timing: "WEEK 10 / 12", title: "『小さな追加』が届く", situation: "佐藤から『検索条件を1つ増やしてほしい。大きな変更ではないと思う』と連絡が来ました。リリースまで2週間です。", thinkingPoint: "要望を受ける前に、何を知らなければ判断できないでしょうか。", visibleInformation: ["依頼は検索条件の追加", "顧客は納期厳守を求めている"], actionIds: ["hear_sato", "check_dev", "check_schedule"],
+      id: "request", timing: "WEEK 10 / 12", title: "『小さな追加』が届く", situation: "佐藤から『検索条件を1つ増やしてほしい。大きな変更ではないと思う』と連絡が来ました。リリースまで2週間です。", thinkingPoint: "要望を受ける前に、何を知らなければ判断できないでしょうか。", visibleInformation: ["依頼は検索条件の追加", "顧客は納期厳守を求めている"], newlyRelevantActionIds: ["ask_sato_background", "ask_tanaka_impact", "schedule_critical_path"],
       decisions: [
         { id: "accept_now", title: "その場で追加を正式に受け入れる", description: "顧客への即応を優先し、現行リリースへ追加します。", irreversible: true, metricEffects: { trust: 6, schedule: -7, quality: -3, teamHealth: -4, scopeStability: -8, riskExposure: 6 }, setsFlags: { requestAccepted: true, formalCommitment: true }, evidence: [], whatHappened: "追加要件を正式に受け入れ、顧客の反応は一時的に良くなりました。", why: "影響を確認する前に約束したため、作業量と期待値が固定されました。", pmPoint: "即答は信頼を上げることもありますが、撤回時の調整コストを生みます。", chainEffect: "追加要件が確定し、開発余力が減少" },
         { id: "analyze_first", title: "回答を保留し、影響確認を宣言する", description: "期限を切って調査し、確認後に回答すると伝えます。", metricEffects: { trust: 1, riskExposure: -2, stakeholderAlignment: 2 }, setsFlags: { impactCheckPromised: true }, evidence: [{ areaId: "scope-control", elementId: "impact", behavior: "impact_analysis", weight: 2 }], whatHappened: "佐藤へ確認期限を伝え、追加可否の回答を一度保留しました。", why: "約束の前に判断材料をそろえる時間を確保できました。", pmPoint: "分からないまま即答せず、いつまでに何を確認するかを示すこともPMの判断です。", chainEffect: "影響確認の余地を確保" },
@@ -53,7 +44,7 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
       ],
     },
     {
-      id: "impact", timing: "WEEK 10 / 12 — DAY 3", title: "『2日』では終わらない", situation: "開発側から、検索APIと回帰テストへの影響が示唆されました。一方、営業は契約更新への影響を気にしています。", thinkingPoint: "技術影響だけでなく、事業上の優先度とチーム負荷をどう把握しますか。", visibleInformation: ["営業は顧客関係を懸念", "開発はテストへの影響を示唆"], actionIds: ["check_dev", "hear_sales", "check_team", "check_schedule"],
+      id: "impact", timing: "WEEK 10 / 12 — DAY 3", title: "『2日』では終わらない", situation: "開発側から、検索APIと回帰テストへの影響が示唆されました。一方、営業は契約更新への影響を気にしています。", thinkingPoint: "技術影響だけでなく、事業上の優先度とチーム負荷をどう把握しますか。", visibleInformation: ["営業は顧客関係を懸念", "開発はテストへの影響を示唆"], newlyRelevantActionIds: ["ask_tanaka_impact", "ask_mori_sales", "ask_suzuki_status", "schedule_remaining"],
       eventByFlags: [{ requiresAll: ["formalCommitment"], text: "すでに顧客へ正式回答したため、調査中も作業着手を止めにくくなっています。" }],
       delayedEffects: [{ requiresAll: ["requestAccepted"], metricEffects: { schedule: -4, teamHealth: -2, scopeStability: -2 }, text: "受け入れた追加作業が開発計画へ入り、テスト準備の余力が減りました。", chainEffect: "即時受入れが日程とチーム余力へ波及" }],
       decisions: [
@@ -63,7 +54,7 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
       ],
     },
     {
-      id: "alignment", timing: "WEEK 11 / 12", title: "関係者の優先順位が衝突する", situation: "佐藤は追加要件、森は契約更新、田中はテスト時間、高橋は発表済み納期を重視しています。全員の希望をそのまま満たすことはできません。", thinkingPoint: "誰が、どの成功条件を基準に最終判断するべきでしょうか。", visibleInformation: ["顧客・営業・開発で優先事項が異なる", "何かを調整しなければ全条件は守れない"], actionIds: ["find_owner", "hear_takahashi", "prepare_option", "share_impact"],
+      id: "alignment", timing: "WEEK 11 / 12", title: "関係者の優先順位が衝突する", situation: "佐藤は追加要件、森は契約更新、田中はテスト時間、高橋は発表済み納期を重視しています。全員の希望をそのまま満たすことはできません。", thinkingPoint: "誰が、どの成功条件を基準に最終判断するべきでしょうか。", visibleInformation: ["顧客・営業・開発で優先事項が異なる", "何かを調整しなければ全条件は守れない"], newlyRelevantActionIds: ["ask_sato_owner", "ask_takahashi_success", "scope_phased_option", "report_customer"],
       decisions: [
         { id: "sato_priority", title: "佐藤の希望を優先する", description: "現場窓口との関係を重視し、全追加要件を進めます。", metricEffects: { trust: 2, schedule: -6, teamHealth: -5, stakeholderAlignment: -4, riskExposure: 5 }, setsFlags: { requestAccepted: true }, evidence: [], whatHappened: "佐藤の希望で進みましたが、高橋と開発側の成功条件は未合意のまま残りました。", why: "窓口担当者と最終判断者の役割を分けずに進めたためです。", pmPoint: "声の大きさではなく、意思決定権と成功条件を確認します。", chainEffect: "一部関係者の期待だけが固定" },
         { id: "build_options", title: "複数案を作り、判断者へ提示する", description: "全追加・段階リリース・次回対応の影響を比較します。", requiresInformation: ["request_background", "implementation_impact"], hidesWhenMissing: true, metricEffects: { businessValue: 4, stakeholderAlignment: 5, riskExposure: -4 }, setsFlags: { alternativePrepared: true }, evidence: [{ areaId: "scope-control", elementId: "alternative", behavior: "alternative_proposal", weight: 2 }, { areaId: "business-value", elementId: "value", behavior: "business_value_check", weight: 1 }, { areaId: "stakeholders", elementId: "alignment", behavior: "consensus_building", weight: 1 }], whatHappened: "目的と実装影響を踏まえた3つの案を比較できるようになりました。", why: "背景と影響の両方を確認していたため、実行可能な代替案を作れました。", pmPoint: "情報取得は、後続の選択肢そのものを増やします。", chainEffect: "全員が比較できる代替案を獲得" },
@@ -71,7 +62,7 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
       ],
     },
     {
-      id: "consequence", timing: "WEEK 11 / 12 — DAY 4", title: "過去の判断が表面化する", situation: "総合テスト開始が迫る中、追加対応の影響が日程とチームに現れました。ここからの変更には調整コストが伴います。", thinkingPoint: "すでにした約束を踏まえ、どこまで回復策を取れるでしょうか。", visibleInformation: ["総合テスト開始まで残りわずか", "正式な約束は簡単に撤回できない"], actionIds: ["check_schedule", "check_team", "prepare_option", "share_impact", "record_agreement"],
+      id: "consequence", timing: "WEEK 11 / 12 — DAY 4", title: "過去の判断が表面化する", situation: "総合テスト開始が迫る中、追加対応の影響が日程とチームに現れました。ここからの変更には調整コストが伴います。", thinkingPoint: "すでにした約束を踏まえ、どこまで回復策を取れるでしょうか。", visibleInformation: ["総合テスト開始まで残りわずか", "正式な約束は簡単に撤回できない"], newlyRelevantActionIds: ["schedule_critical_path", "team_test_capacity", "scope_phased_option", "report_decision_owner"],
       eventByFlags: [
         { requiresAll: ["formalCommitment"], text: "正式受入れを撤回する場合、顧客説明と信頼回復が必要です。" },
         { requiresAll: ["overtimePromised"], text: "追加稼働によりレビュー待ちが増え、品質懸念が表面化しました。" },
@@ -90,7 +81,7 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
       ],
     },
     {
-      id: "release", timing: "WEEK 12 / 12", title: "最終リリース判断", situation: "リリース判定会議です。納期・品質・顧客価値・チーム状態のすべてを完全には守れません。これまで集めた情報と合意状況が、選べる着地点を決めます。", thinkingPoint: "何を守り、何を次へ送るのか。誰とどの条件で合意しますか。", visibleInformation: ["リリース判定は今回が最後", "判断内容は顧客と開発の次の行動を固定する"], actionIds: ["hear_takahashi", "share_impact", "record_agreement"],
+      id: "release", timing: "WEEK 12 / 12", title: "最終リリース判断", situation: "リリース判定会議です。納期・品質・顧客価値・チーム状態のすべてを完全には守れません。これまで集めた情報と合意状況が、選べる着地点を決めます。", thinkingPoint: "何を守り、何を次へ送るのか。誰とどの条件で合意しますか。", visibleInformation: ["リリース判定は今回が最後", "判断内容は顧客と開発の次の行動を固定する"], newlyRelevantActionIds: ["ask_takahashi_success", "report_decision_owner", "scope_phased_option"],
       decisions: [
         { id: "release_full", title: "全機能を予定日にリリースする", description: "納期と追加要件の両方を優先します。", irreversible: true, metricEffects: { schedule: 5, quality: -8, teamHealth: -6, riskExposure: 8, trust: 2 }, setsFlags: { releasedFull: true }, evidence: [], whatHappened: "全機能を予定日に出す判断を確定しました。", why: "納期と範囲を守るため、残っていた品質余力を使いました。", pmPoint: "達成項目だけでなく、受容したリスクを関係者へ明示します。", chainEffect: "全機能・納期を優先し品質リスクを受容" },
         { id: "release_phased", title: "段階リリースを正式決定する", description: "最重要条件だけを今回届け、残りの期限を合意します。", requiresInformation: ["release_option", "decision_owner"], hidesWhenMissing: true, irreversible: true, metricEffects: { schedule: 4, quality: 5, businessValue: 5, scopeStability: 3, trust: 2 }, setsFlags: { phasedRelease: true, finalAgreement: true }, evidence: [{ areaId: "scope-control", elementId: "alternative", behavior: "alternative_proposal", weight: 2 }, { areaId: "stakeholders", elementId: "alignment", behavior: "consensus_building", weight: 2 }, { areaId: "scope-control", elementId: "record", behavior: "written_agreement", weight: 1 }], whatHappened: "高橋と段階リリースに合意し、今回と次回の範囲を分けました。", why: "価値の優先順位と意思決定者を確認していたため、単なる機能削減ではなく事業判断として整理できました。", pmPoint: "良い調整は、減らしたものだけでなく、守った価値と次の約束を明確にします。", chainEffect: "決裁者合意のもと価値を段階的に提供" },

@@ -23,16 +23,20 @@ test("server-renders the simulator mode hub", async () => {
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
 });
 
-test("uses the stateful five-turn template for the project scope scenario", async () => {
-  const [runner, definition, types, advanced] = await Promise.all([
+test("uses the stateful five-turn template with a broad investigation space", async () => {
+  const [runner, explorer, definition, actionSpace, types, advanced] = await Promise.all([
     readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/components/ScenarioActionExplorer.tsx", root), "utf8"),
     readFile(new URL("src/data/scenarios/scope-change-simulation.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/scope-change-action-space.ts", root), "utf8"),
     readFile(new URL("src/data/statefulScenarioTypes.ts", root), "utf8"),
     readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"),
   ]);
   assert.match(types, /interface StatefulScenarioDefinition/);
   assert.match(types, /interface StatefulScenarioTurn/);
   assert.match(types, /grantsInformation/);
+  assert.match(types, /ScenarioActionRepeatPolicy/);
+  assert.match(types, /outcomesByTurn/);
   assert.match(types, /delayedEffects/);
   assert.match(definition, /id: "request"[\s\S]*id: "impact"[\s\S]*id: "alignment"[\s\S]*id: "consequence"[\s\S]*id: "release"/);
   assert.match(definition, /formalCommitment/);
@@ -40,7 +44,20 @@ test("uses the stateful five-turn template for the project scope scenario", asyn
   assert.match(runner, /DECISION CHAIN/);
   assert.match(runner, /INFORMATION REVIEW/);
   assert.match(runner, /STAKEHOLDER VOICES/);
-  assert.match(runner, /actionsLeft/);
+  assert.match(runner, /investigationsLeft/);
+  assert.match(runner, /difficulty === "guided" \? 3 : 2/);
+  assert.match(runner, /sourceActionsByInformation/);
+  assert.match(explorer, /誰に聞きますか？/);
+  assert.match(explorer, /何を確認しますか？/);
+  for (const category of ["hearing", "schedule", "risk", "scope", "team", "report"]) assert.match(actionSpace, new RegExp(`id: "${category}"`));
+  const concreteActions = actionSpace.split("export const scopeChangeActionSpace")[1];
+  assert.equal((concreteActions.match(/^    id: "/gm) ?? []).length, 20, "scope scenario should expose twenty concrete actions per turn");
+  assert.equal((concreteActions.match(/availableFromTurn: 1/g) ?? []).length, 20, "all concrete actions should remain selectable from every turn");
+  assert.match(definition, /actions: scopeChangeActionSpace/);
+  assert.match(actionSpace, /repeatPolicy: "once"/);
+  assert.match(actionSpace, /repeatPolicy: "per-turn"/);
+  assert.match(actionSpace, /repeatPolicy: "always"/);
+  assert.match(definition, /newlyRelevantActionIds/);
   assert.match(advanced, /mode === "project" && scenarioId === "scope-change"/);
 });
 

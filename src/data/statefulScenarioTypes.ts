@@ -22,17 +22,39 @@ export interface ScenarioInformation {
   source: string;
 }
 
+export type ScenarioActionCategoryId = "hearing" | "schedule" | "risk" | "scope" | "team" | "report";
+export type ScenarioActionRepeatPolicy = "once" | "per-turn" | "always";
+
+export interface ScenarioActionCategory {
+  id: ScenarioActionCategoryId;
+  label: string;
+  description: string;
+  icon: string;
+}
+
+export interface ScenarioActionTurnOutcome {
+  grantsInformation?: string[];
+  setsFlags?: Record<string, boolean | number | string>;
+  result: string;
+  whyThisResult: string;
+}
+
 export interface ScenarioAction {
   id: string;
   title: string;
   description: string;
-  category: "hearing" | "schedule" | "risk" | "scope" | "team" | "report";
+  category: ScenarioActionCategoryId;
   stakeholderId?: string;
+  question?: string;
+  guidedHint?: string;
   availableFromTurn: number;
   grantsInformation: string[];
+  repeatPolicy?: ScenarioActionRepeatPolicy;
+  outcomesByTurn?: Record<number, ScenarioActionTurnOutcome>;
   setsFlags?: Record<string, boolean | number | string>;
   metricEffects?: Partial<SimulationMetrics>;
   result: string;
+  whyThisResult?: string;
 }
 
 export interface ConditionalOutcome {
@@ -67,7 +89,9 @@ export interface StatefulScenarioTurn {
   situation: string;
   thinkingPoint: string;
   visibleInformation: string[];
-  actionIds: string[];
+  /** @deprecated 表示候補の制限ではなく、現在とくに関連する行動の印としてのみ使用します。 */
+  actionIds?: string[];
+  newlyRelevantActionIds?: string[];
   decisions: ScenarioDecision[];
   eventByFlags?: Array<{ requiresAll: string[]; text: string }>;
   delayedEffects?: Array<{ requiresAll: string[]; metricEffects: Partial<SimulationMetrics>; text: string; chainEffect: string }>;
@@ -94,6 +118,7 @@ export interface StatefulScenarioDefinition {
   stakeholders: ScenarioStakeholder[];
   information: ScenarioInformation[];
   actions: ScenarioAction[];
+  actionCategories?: ScenarioActionCategory[];
   turns: StatefulScenarioTurn[];
   reactionRules: StakeholderReactionRule[];
 }

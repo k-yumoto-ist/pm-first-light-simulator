@@ -1,0 +1,153 @@
+import type { ScenarioAction, ScenarioActionCategory } from "../statefulScenarioTypes";
+
+export const scenarioActionCategories: ScenarioActionCategory[] = [
+  { id: "hearing", label: "関係者ヒアリング", description: "誰に、何を確認するかを選ぶ", icon: "◉" },
+  { id: "schedule", label: "スケジュール点検", description: "残作業と依存関係を確かめる", icon: "◷" },
+  { id: "risk", label: "リスク整理", description: "先に起こり得る問題を整理する", icon: "△" },
+  { id: "scope", label: "要件・スコープ整理", description: "価値と今回の範囲を整理する", icon: "◎" },
+  { id: "team", label: "チーム状況確認", description: "負荷と品質を支える余力を見る", icon: "♟" },
+  { id: "report", label: "状況共有・報告", description: "必要な相手へ事実と影響を伝える", icon: "↗" },
+];
+
+export const scopeChangeActionSpace: ScenarioAction[] = [
+  {
+    id: "ask_sato_background", title: "要望の背景を確認する", question: "なぜ、この追加要件が必要なのですか？",
+    description: "顧客担当の佐藤に、機能ではなく解決したい目的を聞きます。", category: "hearing", stakeholderId: "sato",
+    guidedHint: "顧客側の要望背景を最も把握している窓口です。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["request_background"], result: "大口顧客の契約更新が要望の背景にあると分かりました。",
+    whyThisResult: "佐藤は顧客側の窓口として、要望が出た経緯を把握していました。",
+  },
+  {
+    id: "ask_sato_priority", title: "最優先の条件を確認する", question: "今回、何を最も優先していますか？",
+    description: "佐藤に、すべて必要なのか、価値の高い部分はどこかを聞きます。", category: "hearing", stakeholderId: "sato",
+    guidedHint: "機能全体ではなく、顧客が守りたい価値を確認できます。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["real_priority"], result: "すべての条件ではなく、特定業種の絞り込みが最重要だと分かりました。",
+    whyThisResult: "窓口へ優先順位を具体的に聞いたため、要望を小さな価値単位に分けられました。",
+  },
+  {
+    id: "ask_sato_owner", title: "最終判断者を確認する", question: "追加要件とリリース条件は、最終的に誰が判断しますか？",
+    description: "佐藤に、顧客側の意思決定構造を確認します。", category: "hearing", stakeholderId: "sato",
+    guidedHint: "窓口と決裁者が同じとは限りません。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["decision_owner"], setsFlags: { decisionOwnerKnown: true }, result: "最終判断者は顧客部長の高橋だと分かりました。",
+    whyThisResult: "日常の窓口である佐藤に決裁経路を明示的に確認したためです。",
+  },
+  {
+    id: "ask_sato_timing", title: "必要な時期を確認する", question: "この条件は、いつまでに、どの範囲まで必要ですか？",
+    description: "顧客説明に必要な時期と、今回必須の範囲を分けて聞きます。", category: "hearing", stakeholderId: "sato",
+    guidedHint: "『リリース日に全部』という前提が本当に必要かを確かめます。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["release_option"], setsFlags: { alternativePrepared: true }, result: "契約更新の説明には必要ですが、すべてを今回入れる必要はないと分かりました。",
+    whyThisResult: "期限と必要範囲を分けて聞いたため、段階的に提供できる余地が見えました。",
+  },
+  {
+    id: "ask_takahashi_success", title: "成功条件を確認する", question: "このリリースで、何を守れれば成功と判断しますか？",
+    description: "顧客決裁者の高橋に、品質・納期・事業成果の優先順位を聞きます。", category: "hearing", stakeholderId: "takahashi",
+    guidedHint: "序盤は詳細を把握していない可能性があります。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
+    result: "高橋は追加要件の詳細をまだ把握しておらず、まず佐藤と整理してほしいと回答しました。",
+    whyThisResult: "高橋は決裁者ですが、序盤では現場要望の整理前だったため、具体的な判断材料を持っていませんでした。",
+    outcomesByTurn: {
+      3: { grantsInformation: ["success_criteria"], result: "高橋は全機能より、既存顧客へ障害を起こさないことと説明可能性を重視していました。", whyThisResult: "影響が具体化した段階で決裁者へ聞いたため、事業判断の基準を確認できました。" },
+      4: { grantsInformation: ["success_criteria"], result: "高橋は品質事故を避けつつ、契約更新に必要な価値を残すことを求めました。", whyThisResult: "品質懸念が表面化した後なので、決裁者の優先順位も具体的になっていました。" },
+      5: { grantsInformation: ["success_criteria"], result: "高橋は機能数より、合意した価値を安全に届けることを成功条件にしました。", whyThisResult: "最終局面で判断基準を再確認し、リリース条件を明文化できました。" },
+    },
+  },
+  {
+    id: "ask_mori_sales", title: "営業上の影響を確認する", question: "契約更新には、どの条件がどの程度影響しますか？",
+    description: "営業責任者の森に、顧客関係と契約への実際の影響を聞きます。", category: "hearing", stakeholderId: "mori",
+    guidedHint: "営業は契約と顧客関係の文脈を把握しています。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["sales_context"], result: "契約更新への影響はありますが、全条件を今回入れる約束まではしていないと分かりました。",
+    whyThisResult: "営業責任者は契約交渉の状況を把握しているため、要望の事業上の重みを確認できました。",
+  },
+  {
+    id: "ask_tanaka_impact", title: "開発影響を確認する", question: "実装・API・テストまで含めると、どの程度の影響がありますか？",
+    description: "開発リーダーの田中に、完成までの作業影響を聞きます。", category: "hearing", stakeholderId: "tanaka",
+    guidedHint: "技術面とテストを含む影響は開発リーダーが把握しています。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["implementation_impact"], result: "実装だけなら2日でも、API対応と回帰テストを含めると7営業日必要だと分かりました。",
+    whyThisResult: "田中は実現可能性と品質責任を持つため、実装以外の作業も含めて回答できました。",
+  },
+  {
+    id: "ask_tanaka_customer_context", title: "顧客側の背景を確認する", question: "顧客は、なぜこの条件を必要としているのですか？",
+    description: "開発リーダーの田中に、顧客要望の背景を聞きます。", category: "hearing", stakeholderId: "tanaka",
+    guidedHint: "情報源と担当領域が合っているか考えましょう。", availableFromTurn: 1, repeatPolicy: "once", grantsInformation: [],
+    result: "田中は実装の話しか聞いておらず、顧客側の背景までは把握していませんでした。",
+    whyThisResult: "田中は技術責任者です。要望の目的を知るには、顧客担当者や営業への確認が必要です。",
+  },
+  {
+    id: "ask_suzuki_status", title: "実装担当の状態を確認する", question: "作業負荷やレビューで、困っていることはありますか？",
+    description: "実装担当の鈴木に、表面化しにくい負荷と品質懸念を聞きます。", category: "hearing", stakeholderId: "suzuki",
+    guidedHint: "担当者は自分から遅れや負荷を言い出しにくいことがあります。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
+    result: "鈴木は『今のところ大きな問題はありません』と答えました。",
+    whyThisResult: "序盤では追加作業の影響がまだ顕在化していません。状況変化後の再確認には価値があります。",
+    outcomesByTurn: {
+      2: { grantsInformation: ["team_load"], result: "既存作業の残業が続き、レビュー時間が削られ始めていると分かりました。", whyThisResult: "追加要件の調査が始まり、実装担当の負荷が具体化していました。" },
+      3: { grantsInformation: ["team_load"], result: "追加対応の影響でレビューが追いつかず、品質への不安が出ていました。", whyThisResult: "時間経過によって、同じ質問でも新しい兆候を確認できました。" },
+      4: { grantsInformation: ["team_load"], result: "テスト直前の修正が増え、鈴木は判断待ちで作業を切り替え続けていました。", whyThisResult: "方針が定まらないこと自体がチーム負荷になっていました。" },
+      5: { grantsInformation: ["team_load"], result: "最終判断が明確なら、優先範囲へ集中できる状態だと分かりました。", whyThisResult: "リリース直前では作業量だけでなく、優先順位の明確さがチーム状態を左右します。" },
+    },
+  },
+  {
+    id: "schedule_remaining", title: "残作業を確認する", description: "実装・レビュー・テストの残量を分けて確認します。", category: "schedule",
+    guidedHint: "『実装日数』だけでなく完了までの全作業を見ます。", availableFromTurn: 1, repeatPolicy: "per-turn",
+    grantsInformation: ["implementation_impact"], result: "実装後のAPI対応と回帰テストを含めると、残作業は7営業日相当でした。",
+    whyThisResult: "作業を工程別に分けたため、見かけの2日と完了までの7日の差が分かりました。",
+  },
+  {
+    id: "schedule_critical_path", title: "クリティカルパスを確認する", description: "どの遅れがリリース全体へ波及するかを確認します。", category: "schedule",
+    guidedHint: "依存タスクを確認すると、優先すべき遅れが分かります。", availableFromTurn: 1, repeatPolicy: "per-turn",
+    grantsInformation: ["schedule_bottleneck"], result: "検索APIの修正が総合テスト開始を左右するボトルネックだと分かりました。",
+    whyThisResult: "タスクの依存関係を見たため、単なる残日数ではなく遅れの波及経路を確認できました。",
+  },
+  {
+    id: "risk_quality", title: "品質リスクを整理する", description: "追加対応がレビューと回帰テストへ与える不確実性を整理します。", category: "risk",
+    guidedHint: "短納期で最初に削られやすい工程を考えます。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: ["team_load"],
+    setsFlags: { qualityRiskReviewed: true }, result: "追加対応を載せると、レビューと回帰テストの時間が先に圧迫されると分かりました。",
+    whyThisResult: "品質を数値回復させるのではなく、どの工程で問題が起きるかを先に言語化しました。",
+  },
+  {
+    id: "risk_uncertainty", title: "追加要件の不確実性を整理する", description: "背景・影響・決裁者のうち、未確認の前提を整理します。", category: "risk",
+    guidedHint: "分からないこと自体をリスクとして扱います。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
+    setsFlags: { uncertaintyReviewed: true }, result: "要望背景、実装影響、最終判断者の確認状況を分けて整理しました。",
+    whyThisResult: "リスク整理は問題を消す行動ではなく、次に確認すべき不確実性を明確にする行動です。",
+  },
+  {
+    id: "scope_must_have", title: "必須条件を整理する", description: "要求を価値単位に分け、今回不可欠な範囲を整理します。", category: "scope",
+    guidedHint: "顧客の優先順位を把握していると、より具体的に整理できます。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["real_priority"], result: "特定業種の絞り込みを最優先とし、それ以外を分けて検討できる状態になりました。",
+    whyThisResult: "機能をひとまとまりで扱わず、価値の高い部分へ分解したためです。",
+  },
+  {
+    id: "scope_phased_option", title: "今回と次回の範囲を分ける", description: "価値を残しながら段階的に提供する案を検討します。", category: "scope",
+    guidedHint: "背景と実装影響を確認していると、現実的な案になります。", availableFromTurn: 1, repeatPolicy: "once",
+    grantsInformation: ["release_option"], setsFlags: { alternativePrepared: true }, result: "最重要条件だけを先行し、残りを次回へ送る案を作成しました。",
+    whyThisResult: "全部かゼロかではなく、価値と作業量の単位でスコープを組み替えました。",
+  },
+  {
+    id: "team_load_check", title: "チーム負荷を確認する", description: "残業・割込み・作業切替の負荷を確認します。", category: "team",
+    guidedHint: "進捗率だけでは見えない負荷を確認します。", availableFromTurn: 1, repeatPolicy: "per-turn",
+    grantsInformation: ["team_load"], result: "追加対応をそのまま載せるとレビュー時間が削られる状態だと分かりました。",
+    whyThisResult: "チームへ直接確認したため、計画表に出ない負荷を把握できました。",
+  },
+  {
+    id: "team_test_capacity", title: "レビュー・テスト余力を確認する", description: "品質を守るために残っている時間と担当者を確認します。", category: "team",
+    guidedHint: "機能を作れることと、安全に出せることは別です。", availableFromTurn: 1, repeatPolicy: "per-turn",
+    grantsInformation: ["team_load"], setsFlags: { testCapacityReviewed: true }, result: "実装を増やすと、レビューと回帰テストの余力が不足すると分かりました。",
+    whyThisResult: "実装人数ではなく、品質確認を完了できる体制を確認したためです。",
+  },
+  {
+    id: "report_customer", title: "顧客担当へ状況を共有する", description: "分かっている影響と未確定事項を佐藤へ共有します。", category: "report", stakeholderId: "sato",
+    guidedHint: "確認途中であることも含め、期待値をそろえます。", availableFromTurn: 1, repeatPolicy: "always", grantsInformation: [],
+    setsFlags: { impactShared: true }, result: "佐藤へ、追加可否は影響確認後に回答すると共有しました。",
+    whyThisResult: "結論前でも確認状況を透明にしたため、即答せず期待値を調整できました。",
+  },
+  {
+    id: "report_decision_owner", title: "顧客決裁者へ状況を共有する", description: "高橋へ、判断が必要な論点と影響を共有します。", category: "report", stakeholderId: "takahashi",
+    guidedHint: "詳細がない段階では、共有しても判断を得られない可能性があります。", availableFromTurn: 1, repeatPolicy: "always", grantsInformation: [],
+    setsFlags: { decisionOwnerContacted: true }, result: "高橋へ論点を共有しましたが、影響が未整理のため判断は保留になりました。",
+    whyThisResult: "決裁者を巻き込むことは重要ですが、判断材料がなければ意思決定までは進みません。",
+  },
+  {
+    id: "report_team", title: "開発チームへ状況を共有する", description: "追加要件が未確定であることと、着手条件を共有します。", category: "report", stakeholderId: "tanaka",
+    guidedHint: "正式判断前の先走った着手を防ぎます。", availableFromTurn: 1, repeatPolicy: "always", grantsInformation: [],
+    setsFlags: { teamBriefed: true }, result: "開発チームは、正式判断まで影響調査に留める方針を共有しました。",
+    whyThisResult: "未確定事項と着手条件を分けて伝えたため、調査と実装着手の混同を防げました。",
+  },
+];
