@@ -17,6 +17,7 @@ export function SimulatorCockpit({
   scenarioDecision,
   actions,
   usedIds,
+  usageCounts,
   disabled,
   onSelectAction,
   sideContent,
@@ -37,6 +38,7 @@ export function SimulatorCockpit({
   scenarioDecision?: ReactNode;
   actions: PMActionDefinition[];
   usedIds: PMActionDefinition["id"][];
+  usageCounts?: Partial<Record<PMActionDefinition["id"], number>>;
   disabled: boolean;
   onSelectAction: (action: PMActionDefinition) => void;
   sideContent?: ReactNode;
@@ -45,7 +47,7 @@ export function SimulatorCockpit({
   canAdvance: boolean;
   onAdvance: () => void;
 }) {
-  const actionGrid = <ActionGrid actions={actions} usedIds={usedIds} disabled={disabled} onSelect={onSelectAction} />;
+  const actionGrid = <ActionGrid actions={actions} usedIds={usedIds} usageCounts={usageCounts} disabled={disabled} onSelect={onSelectAction} />;
   return <section className={`step-stage decision-step simulator-cockpit ${sideContent ? "has-side-content" : ""}`}>
     <div className="decision-step-inner">
       <header className="decision-context"><div><span>現在の状況</span><strong>{title}</strong>{contextMeta}</div>{onViewSituation ? <button type="button" onClick={onViewSituation}>状況を確認</button> : null}</header>
