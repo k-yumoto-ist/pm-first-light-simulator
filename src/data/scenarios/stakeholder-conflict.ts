@@ -1,7 +1,7 @@
 import type { HiddenState, ScenarioDefinition } from "../types";
 const hidden: HiddenState = { scopeCreep: 0, burnoutRisk: 0, keyPersonDependency: 1, customerExpectationGap: 1, decisionOwnerDefined: false, contingencyPrepared: false, technicalDebt: 0, knowledgeConcentration: 1, agreementRecorded: false };
 export const stakeholderConflictScenario: ScenarioDefinition = {
-  id: "stakeholder-conflict", title: "顧客同士が揉めている", subtitle: "異なる目的を整理し、合意できる判断を作る", trainingTitle: "Stakeholders：対立する期待をどう整えるか", scenarioTitle: "顧客同士が揉めている", primaryDomain: "stakeholders", relatedDomains: ["scope", "governance", "finance"],
+  id: "stakeholder-conflict", title: "顧客同士が揉めている", subtitle: "異なる目的を整理し、合意できる判断を作る", trainingTitle: "ステークホルダー：対立する期待をどう整えるか", scenarioTitle: "顧客同士が揉めている", primaryDomain: "stakeholders", relatedDomains: ["scope", "governance", "finance"],
   briefing: { context: "営業は早期公開を、運用は安定性を、情シスは管理負荷の削減を求めています。", objective: "各者の目的と判断条件を可視化し、納得できる方向を作ります。", initialUnknowns: ["各部門が守りたい価値", "最終的な意思決定者", "合意できる成功条件"] }, initialState: { schedule: 64, budget: 72, quality: 70, trust: 48, teamHealth: 68, businessValue: 64, riskExposure: 52 }, initialHiddenState: hidden,
   observedBehaviorTags: ["stakeholder_analysis", "purpose_confirmation", "decision_rights_clarification", "consensus_building", "alternative_proposal", "expectation_management", "written_agreement"], opportunityBehaviorTags: ["business_value_check", "early_escalation"],
   events: [

@@ -1,7 +1,7 @@
 import type { HiddenState, ScenarioDefinition } from "../types";
 const hidden: HiddenState = { scopeCreep: 0, burnoutRisk: 0, keyPersonDependency: 3, customerExpectationGap: 0, decisionOwnerDefined: true, contingencyPrepared: false, technicalDebt: 0, knowledgeConcentration: 3, agreementRecorded: false };
 export const keypersonExitScenario: ScenarioDefinition = {
-  id: "keyperson-exit", title: "キーマンが抜ける", subtitle: "属人化を減らし、チームで知識をつなぐ", trainingTitle: "Resources：キーマン離脱に備える", scenarioTitle: "キーマンが抜ける", primaryDomain: "resources", relatedDomains: ["risk", "schedule", "stakeholders"],
+  id: "keyperson-exit", title: "キーマンが抜ける", subtitle: "属人化を減らし、チームで知識をつなぐ", trainingTitle: "リソース：キーマン離脱に備える", scenarioTitle: "キーマンが抜ける", primaryDomain: "resources", relatedDomains: ["risk", "schedule", "stakeholders"],
   briefing: { context: "重要な外部連携を担当するテックリードから、退職相談がありました。", objective: "個人に集中した知識と作業を可視化し、継続できる体制を整えます。", initialUnknowns: ["属人化している判断と作業", "引き継ぎに必要な期間", "後任に必要なスキル"] }, initialState: { schedule: 68, budget: 68, quality: 78, trust: 70, teamHealth: 64, businessValue: 74, riskExposure: 60 }, initialHiddenState: hidden,
   observedBehaviorTags: ["stakeholder_analysis", "knowledge_transfer", "resource_reallocation", "risk_identification", "risk_response_planning", "early_escalation", "team_health_monitoring"], opportunityBehaviorTags: ["contingency_planning", "written_agreement"],
   events: [

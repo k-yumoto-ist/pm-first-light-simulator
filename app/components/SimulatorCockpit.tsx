@@ -11,7 +11,7 @@ export function SimulatorCockpit({
   onViewSituation,
   metrics,
   changes,
-  kicker = "YOUR DECISION",
+  kicker = "次の行動",
   prompt = "PMとして、次に何をしますか？",
   budget,
   scenarioDecision,

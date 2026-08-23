@@ -126,7 +126,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .metric-card { padding:16px 6px 9px; }
 .metric-top { display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:700; }
 .status { padding:3px 7px; border-radius:20px; font-size:10px; }
-.status-順調 { background:#dcefe9; color:#087166; }.status-注意 { background:#f5ebca; color:#896514; }.status-遅延,.status-危険 { background:#f6deda; color:#a74335; }
+.status-順調 { background:#dcefe9; color:#087166; }.status-注意 { background:#f5ebca; color:#896514; }.status-警戒 { background:#f8e3d6; color:#a24e25; }.status-危険 { background:#f6deda; color:#a74335; }
 .meter,.score-meter { height:4px; margin-top:9px; overflow:hidden; background:#dedfd9; }
 .meter i,.score-meter i { display:block; height:100%; background:var(--teal); transition:width .5s ease; }
 .risk-line { display:flex; justify-content:space-between; margin:18px 6px; padding:13px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); font-size:11px; }

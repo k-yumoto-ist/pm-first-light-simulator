@@ -57,7 +57,7 @@ export default function ScenarioActionExplorer({
           <button key={category.id} onClick={() => { setCategoryId(category.id); setStakeholderId(undefined); }}>
             <b>{category.icon}</b>
             <span><strong>{category.label}</strong><small>{category.description}</small></span>
-            <em>{actionCounts.get(category.id) ?? 0} choices</em>
+            <em>{actionCounts.get(category.id) ?? 0}件の行動</em>
           </button>
         ))}
       </div>
@@ -96,7 +96,7 @@ export default function ScenarioActionExplorer({
                 <span>
                   <strong>{action.question ?? action.title}</strong>
                   {difficulty !== "challenge" ? <small>{action.description}</small> : null}
-                  {difficulty === "guided" && action.guidedHint ? <i>HINT: {action.guidedHint}</i> : null}
+                  {difficulty === "guided" && action.guidedHint ? <i>ヒント：{action.guidedHint}</i> : null}
                 </span>
                 <em>{availability.label ?? (isRelevant ? "今の状況に関連" : "詳細を見る")}</em>
               </button>

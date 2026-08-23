@@ -7,23 +7,24 @@ import { scenarios } from "@/src/data/scenarios";
 import type { Difficulty, PmbokDomain } from "@/src/data/types";
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
+import { difficultyLabels } from "../data/uiLabels";
 
 type View = "home" | "light" | "training" | "scenario" | "advanced";
 
 const trainingDomains: Array<{ id: PmbokDomain; label: string; icon: string; available: boolean }> = [
-  { id: "scope", label: "Scope", icon: "◎", available: true },
-  { id: "schedule", label: "Schedule", icon: "◷", available: true },
-  { id: "resources", label: "Resources", icon: "♟", available: true },
-  { id: "stakeholders", label: "Stakeholders", icon: "◇", available: true },
-  { id: "governance", label: "Governance", icon: "⌂", available: false },
-  { id: "finance", label: "Finance", icon: "¥", available: false },
-  { id: "risk", label: "Risk", icon: "△", available: false },
+  { id: "scope", label: "スコープ", icon: "◎", available: true },
+  { id: "schedule", label: "スケジュール", icon: "◷", available: true },
+  { id: "resources", label: "リソース", icon: "♟", available: true },
+  { id: "stakeholders", label: "ステークホルダー", icon: "◇", available: true },
+  { id: "governance", label: "ガバナンス", icon: "⌂", available: false },
+  { id: "finance", label: "財務", icon: "¥", available: false },
+  { id: "risk", label: "リスク", icon: "△", available: false },
 ];
 
 const difficulties: Array<{ id: Difficulty; label: string; description: string }> = [
-  { id: "guided", label: "GUIDED", description: "見るべきポイントと影響の方向を確認しながら進めます。" },
-  { id: "standard", label: "STANDARD", description: "状況と行動の意味を手がかりに、自分で判断します。" },
-  { id: "challenge", label: "CHALLENGE", description: "限られた情報だけで、経験者向けの判断に挑みます。" },
+  { id: "guided", label: difficultyLabels.guided, description: "見るべきポイントと影響の方向を確認しながら進めます。" },
+  { id: "standard", label: difficultyLabels.standard, description: "状況と行動の意味を手がかりに、自分で判断します。" },
+  { id: "challenge", label: difficultyLabels.challenge, description: "限られた情報だけで、経験者向けの判断に挑みます。" },
 ];
 
 export default function SimulatorHub() {
@@ -46,11 +47,11 @@ export default function SimulatorHub() {
     return (
       <main className={`v2-setup-shell ${view === "training" ? modeThemes.training.className : modeThemes.project.className}`} style={modeThemeStyle(view === "training" ? "training" : "project")}>
         <header className="v2-brandbar">
-          <button className="v2-back" onClick={() => { setView("home"); setSelectedScenarioId(undefined); }}>← MODE SELECT</button>
-          <div><strong>PROJECT: FIRST LIGHT</strong><span>PM SIMULATOR</span></div>
+          <button className="v2-back" onClick={() => { setView("home"); setSelectedScenarioId(undefined); }}>← モード選択へ戻る</button>
+          <div><strong>PROJECT: FIRST LIGHT</strong><span>PMシミュレーター</span></div>
         </header>
         <section className="v2-setup">
-          <p className="v2-kicker">{view === "training" ? "TRAINING MODE" : "PROJECT SCENARIO MODE"}</p>
+          <p className="v2-kicker">{view === "training" ? modeThemes.training.label : modeThemes.project.label}</p>
           <h1>{view === "training" ? "どの観点を体験しますか？" : "どの案件に向き合いますか？"}</h1>
           <p className="v2-lead">入口が違っても、判断の結果は同じプロジェクトの因果関係として進みます。</p>
 
@@ -63,7 +64,7 @@ export default function SimulatorHub() {
                   <button key={domain.id} disabled={!domain.available} className={`v2-select-card ${active ? "selected" : ""}`} onClick={() => scenario && selectScenario(scenario.id)}>
                     <span className="v2-select-icon">{domain.icon}</span>
                     <strong>{domain.label}</strong>
-                    <small>{domain.available ? scenario?.subtitle : "COMING SOON"}</small>
+                    <small>{domain.available ? scenario?.subtitle : "準備中"}</small>
                   </button>
                 );
               })}
@@ -81,7 +82,7 @@ export default function SimulatorHub() {
           )}
 
           <div className="v2-difficulty">
-            <div><p className="v2-kicker">PLAY STYLE</p><h2>情報の見え方を選ぶ</h2></div>
+            <div><p className="v2-kicker">プレイ難易度</p><h2>情報の見え方を選ぶ</h2></div>
             <div className="v2-difficulty-options">
               {difficulties.map((item) => (
                 <button key={item.id} className={difficulty === item.id ? "selected" : ""} onClick={() => setDifficulty(item.id)}>
@@ -102,21 +103,21 @@ export default function SimulatorHub() {
   return (
     <main className="v2-home-shell">
       <div className="v2-sun" aria-hidden="true" />
-      <header className="v2-home-brand"><span>FL</span><div><strong>PROJECT: FIRST LIGHT</strong><small>PM SIMULATOR</small></div></header>
+      <header className="v2-home-brand"><span>FL</span><div><strong>PROJECT: FIRST LIGHT</strong><small>PMシミュレーター</small></div></header>
       <section className="v2-home-hero">
-        <p className="v2-kicker">DECIDE. OBSERVE. LEARN.</p>
+        <p className="v2-kicker">状況を見る・判断する・学ぶ</p>
         <h1>PMとして考えることを、<br /><em>プロジェクトの結果</em>から学ぶ。</h1>
         <p>知識を先に覚えるのではなく、状況を読み、判断し、起きたことを振り返るシミュレーションです。</p>
       </section>
       <section className="v2-mode-grid" aria-label="プレイモード">
         <button className={`v2-mode-card light ${modeThemes.light.className}`} style={modeThemeStyle("light")} onClick={() => setView("light")}>
-          <span className="v2-mode-number">01</span><p>LIGHT MODE</p><h2>初めての<br />プロジェクトマネジメント</h2><small>既存の4ターンを通じて、PMの基本を体験</small><b>PLAY →</b>
+          <span className="v2-mode-number">01</span><p>{modeThemes.light.label}</p><h2>初めての<br />プロジェクトマネジメント</h2><small>既存の4ターンを通じて、PMの基本を体験</small><b>プレイする →</b>
         </button>
         <button className={`v2-mode-card ${modeThemes.training.className}`} style={modeThemeStyle("training")} onClick={() => { setEntryMode("training"); setView("training"); }}>
-          <span className="v2-mode-number">02</span><p>TRAINING MODE</p><h2>特定テーマを<br />集中的に練習する</h2><small>Scope / Schedule / Resources / Stakeholders</small><b>SELECT →</b>
+          <span className="v2-mode-number">02</span><p>{modeThemes.training.label}</p><h2>特定テーマを<br />集中的に練習する</h2><small>スコープ・スケジュール・リソース・ステークホルダー</small><b>選ぶ →</b>
         </button>
         <button className={`v2-mode-card ${modeThemes.project.className}`} style={modeThemeStyle("project")} onClick={() => { setEntryMode("project"); setView("scenario"); }}>
-          <span className="v2-mode-number">03</span><p>PROJECT SCENARIO MODE</p><h2>複雑な案件で<br />PMとして悩む</h2><small>追加要件・遅延・離脱・関係者対立</small><b>SELECT →</b>
+          <span className="v2-mode-number">03</span><p>{modeThemes.project.label}</p><h2>複雑な案件で<br />PMとして悩む</h2><small>追加要件・遅延・離脱・関係者対立</small><b>選ぶ →</b>
         </button>
       </section>
     </main>

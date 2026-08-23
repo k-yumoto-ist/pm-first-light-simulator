@@ -4,8 +4,8 @@ export type SimulatorMode = "light" | "training" | "project";
 
 export const modeThemes = {
   light: {
-    label: "LIGHT MODE",
-    shortLabel: "LIGHT",
+    label: "ライトモード",
+    shortLabel: "ライト",
     className: "mode-light",
     accent: "#16877c",
     accentHover: "#0f6f67",
@@ -13,8 +13,8 @@ export const modeThemes = {
     accentContrast: "#ffffff",
   },
   training: {
-    label: "TRAINING MODE",
-    shortLabel: "TRAINING",
+    label: "トレーニングモード",
+    shortLabel: "トレーニング",
     className: "mode-training",
     accent: "#4778b6",
     accentHover: "#35639c",
@@ -22,8 +22,8 @@ export const modeThemes = {
     accentContrast: "#ffffff",
   },
   project: {
-    label: "PROJECT SCENARIO",
-    shortLabel: "PROJECT",
+    label: "プロジェクトシナリオ",
+    shortLabel: "シナリオ",
     className: "mode-project",
     accent: "#d16443",
     accentHover: "#ad4d34",

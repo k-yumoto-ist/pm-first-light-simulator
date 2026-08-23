@@ -17,9 +17,9 @@ test("server-renders the simulator mode hub", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /PROJECT: FIRST LIGHT/);
-  assert.match(html, /LIGHT MODE/);
-  assert.match(html, /TRAINING MODE/);
-  assert.match(html, /PROJECT SCENARIO MODE/);
+  assert.match(html, /ライトモード/);
+  assert.match(html, /トレーニングモード/);
+  assert.match(html, /プロジェクトシナリオ/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
 });
 
@@ -41,9 +41,9 @@ test("uses the stateful five-turn template with a broad investigation space", as
   assert.match(definition, /id: "request"[\s\S]*id: "impact"[\s\S]*id: "alignment"[\s\S]*id: "consequence"[\s\S]*id: "release"/);
   assert.match(definition, /formalCommitment/);
   assert.match(definition, /StakeholderReactionRule|reactionRules/);
-  assert.match(runner, /DECISION CHAIN/);
-  assert.match(runner, /INFORMATION REVIEW/);
-  assert.match(runner, /STAKEHOLDER VOICES/);
+  assert.match(runner, /判断の連鎖/);
+  assert.match(runner, /情報収集の振り返り/);
+  assert.match(runner, /関係者の声/);
   assert.match(runner, /investigationsLeft/);
   assert.match(runner, /difficulty === "guided" \? 3 : 2/);
   assert.match(runner, /sourceActionsByInformation/);
@@ -92,10 +92,10 @@ test("renders the stateful scenario through the canonical LIGHT flow", async () 
   assert.match(runner, /<FinalResultFramework mode="project"/);
   assert.match(cockpit, /canonical-cockpit-grid/);
   assert.match(result, /presentation === "dialog"/);
-  assert.match(finalResult, /PROJECT SCORE/);
-  assert.match(finalResult, /YOUR PM STYLE/);
+  assert.match(finalResult, /総合スコア/);
+  assert.match(finalResult, /あなたの判断スタイル/);
   assert.match(finalResult, /type OutcomeSummaryItem/);
-  assert.match(finalResult, /OUTCOME SUMMARY/);
+  assert.match(finalResult, /結果サマリー/);
   assert.match(finalResult, /final-outcome-summary/);
   assert.match(runner, /outcomeSummary=\{outcomeSummary\}/);
   assert.match(accessibleDialog, /event\.key !== "Tab"/);
@@ -103,8 +103,8 @@ test("renders the stateful scenario through the canonical LIGHT flow", async () 
   assert.match(chat, /chat-drawer/);
   assert.match(chat, /onSelectQuestion/);
   assert.match(chat, /<AccessibleDialog/);
-  assert.match(intro, /PROJECT BRIEF/);
-  assert.match(runner, /exitLabel="MODE SELECTへ戻る" onExit=\{onExit\}/);
+  assert.match(intro, /プロジェクト概要/);
+  assert.match(runner, /exitLabel="モード選択へ戻る" onExit=\{onExit\}/);
 });
 
 test("keeps the light-mode decision loop intact", async () => {
@@ -135,8 +135,8 @@ test("keeps the light-mode decision loop intact", async () => {
   assert.match(actions, /learningByArea/);
   assert.match(actionDetail, /<AccessibleDialog/);
   assert.match(confirmDialog, /<AccessibleDialog/);
-  assert.match(resultStep, /PMBOK LEARNING/);
-  assert.match(projectLog, /DAY \{log\.day\}/);
+  assert.match(resultStep, /PMBOKでの学び/);
+  assert.match(projectLog, /\{log\.day\}日目/);
   assert.match(projectLog, /displayLimit/);
   assert.match(chat, /StakeholderChatQuestion/);
   assert.match(chat, /<AccessibleDialog/);
@@ -150,10 +150,10 @@ test("keeps v2 scenarios data-driven and separates learning from behavior review
   assert.match(hub, /<AdvancedSimulator/);
   assert.match(hub, /modeThemeStyle/);
   assert.match(hub, /window\.scrollTo/);
-  assert.match(runner, /WHAT HAPPENED/);
-  assert.match(runner, /PMBOK REVIEW/);
+  assert.match(runner, /起きたこと/);
+  assert.match(runner, /PMBOKで振り返る/);
   assert.match(runner, /<FinalResultFramework mode=\{mode\}/);
-  assert.match(finalResult, /YOUR PM STYLE/);
+  assert.match(finalResult, /あなたの判断スタイル/);
   assert.match(themes, /light:[\s\S]*training:[\s\S]*project:/);
   assert.match(themes, /--mode-accent/);
   assert.match(types, /interface ProjectState/);
@@ -166,4 +166,37 @@ test("keeps v2 scenarios data-driven and separates learning from behavior review
     assert.match(scenario, /behaviorEvidence:/);
     assert.match(scenario, /resolveConsequence/);
   }
+});
+
+test("uses shared Japanese labels and health statuses in player-facing UI", async () => {
+  const [labels, metrics, light, project, legacy, result, hub, explorer, chat, actionDetail, actionConfirm, scope, schedule, resources, stakeholders] = await Promise.all([
+    readFile(new URL("app/data/uiLabels.ts", root), "utf8"),
+    readFile(new URL("app/components/ProjectMetrics.tsx", root), "utf8"),
+    readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/FinalResultFramework.tsx", root), "utf8"),
+    readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"),
+    readFile(new URL("app/components/ScenarioActionExplorer.tsx", root), "utf8"),
+    readFile(new URL("app/components/StakeholderChatDrawer.tsx", root), "utf8"),
+    readFile(new URL("app/components/ActionDetailModal.tsx", root), "utf8"),
+    readFile(new URL("app/components/ActionConfirmDialog.tsx", root), "utf8"),
+    readFile(new URL("src/data/scenarios/scope-change.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/schedule-crisis.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/keyperson-exit.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/stakeholder-conflict.ts", root), "utf8"),
+  ]);
+  for (const status of ["順調", "注意", "警戒", "危険"]) assert.match(labels, new RegExp(status));
+  for (const label of ["納期", "品質", "顧客信頼", "チーム状態", "リスク", "スコープ安定性", "関係者合意", "事業価値", "コスト"]) assert.match(labels, new RegExp(label));
+  assert.match(metrics, /getMetricStatusLabel/);
+  assert.match(light, /getMetricStatusLabel/);
+  assert.match(project, /getMetricStatusLabel/);
+  assert.doesNotMatch(`${metrics}\n${light}\n${project}`, /statusFor|summaryStatus|\"遅延\"/);
+  const playerUi = [metrics, light, project, legacy, result, hub, explorer, chat, actionDetail, actionConfirm, scope, schedule, resources, stakeholders].join("\n");
+  assert.doesNotMatch(playerUi, /PROJECT SCORE|PROJECT RESULT|OUTCOME SUMMARY|YOUR PM STYLE|HOW THE SCORE WAS FORMED|ACTIONS LEFT|YOUR DECISION|TURN DECISION/);
+  assert.doesNotMatch(playerUi, />\s*(?:Stable|Caution|Warning|Critical)\s*</);
+  assert.doesNotMatch(playerUi, /\b(?:LIGHT MODE|TRAINING MODE|PROJECT SCENARIO MODE|COMING SOON|PLAY STYLE)\b/);
+  assert.match(result, /総合スコア/);
+  assert.match(result, /結果サマリー/);
+  assert.match(result, /あなたの判断スタイル/);
 });

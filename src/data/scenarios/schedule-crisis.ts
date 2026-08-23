@@ -2,7 +2,7 @@ import type { HiddenState, ScenarioDefinition } from "../types";
 
 const hidden: HiddenState = { scopeCreep: 0, burnoutRisk: 0, keyPersonDependency: 1, customerExpectationGap: 0, decisionOwnerDefined: true, contingencyPrepared: false, technicalDebt: 0, knowledgeConcentration: 1, agreementRecorded: false };
 export const scheduleCrisisScenario: ScenarioDefinition = {
-  id: "schedule-crisis", title: "このままでは間に合わない", subtitle: "遅延の構造を見て、回復の道筋を作る", trainingTitle: "Schedule：遅延をどう回復するか", scenarioTitle: "このままでは間に合わない", primaryDomain: "schedule", relatedDomains: ["scope", "resources", "stakeholders"],
+  id: "schedule-crisis", title: "このままでは間に合わない", subtitle: "遅延の構造を見て、回復の道筋を作る", trainingTitle: "スケジュール：遅延をどう回復するか", scenarioTitle: "このままでは間に合わない", primaryDomain: "schedule", relatedDomains: ["scope", "resources", "stakeholders"],
   briefing: { context: "リリースまで3週間。クリティカルパス上のAPI連携タスクが5営業日遅れています。", objective: "遅れの原因と全体影響を把握し、実行可能な回復策を合意します。", initialUnknowns: ["遅延が全体に与える影響", "並行化できる作業", "追加負荷を受けられる余力"] },
   initialState: { schedule: 42, budget: 70, quality: 74, trust: 62, teamHealth: 66, businessValue: 70, riskExposure: 56 }, initialHiddenState: hidden,
   observedBehaviorTags: ["critical_path_analysis", "recovery_planning", "resource_reallocation", "scope_baseline_reference", "early_escalation", "expectation_management", "team_health_monitoring"], opportunityBehaviorTags: ["contingency_planning", "written_agreement"],

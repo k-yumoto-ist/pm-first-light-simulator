@@ -16,7 +16,7 @@ export const scopeChangeScenario: ScenarioDefinition = {
   id: "scope-change",
   title: "リリース直前の追加要件",
   subtitle: "追加要望を、価値と影響を見ながら扱う",
-  trainingTitle: "Scope：追加要件をどう扱うか",
+  trainingTitle: "スコープ：追加要件をどう扱うか",
   scenarioTitle: "リリース直前の追加要件",
   primaryDomain: "scope",
   relatedDomains: ["schedule", "stakeholders", "finance"],
