@@ -10,7 +10,7 @@ const directionCopy = {
 
 export function ActionDetailModal({ action, actionsLeft, disabled, executeLabel, onClose, onExecute }: { action: PMActionDefinition; actionsLeft: number; disabled: boolean; executeLabel?: string; onClose: () => void; onExecute: () => void }) {
   return <AccessibleDialog onClose={onClose} labelledBy="action-detail-title" overlayClassName="action-detail-overlay" dialogClassName="action-detail-dialog">
-    <header><span className="detail-code">{action.code}</span><div><p>アクション詳細</p><h2 id="action-detail-title">{action.title}</h2></div><button type="button" aria-label="アクション詳細を閉じる" onClick={onClose}>×</button></header>
+    <header><div><p>PMアクション</p><h2 id="action-detail-title">{action.title}</h2></div><button type="button" aria-label="アクション詳細を閉じる" onClick={onClose}>×</button></header>
     <div className="action-detail-body">
       <section><span>何をする？</span><p>{action.description}</p></section>
       <section><span>こんな時に有効</span><ul>{action.useCases.map(item => <li key={item}>{item}</li>)}</ul></section>

@@ -35,8 +35,15 @@ export interface ScenarioActionCategory {
 export interface ScenarioActionTurnOutcome {
   grantsInformation?: string[];
   setsFlags?: Record<string, boolean | number | string>;
+  metricEffects?: Partial<SimulationMetrics>;
   result: string;
   whyThisResult: string;
+}
+
+export interface ScenarioActionConditionalOutcome extends ScenarioActionTurnOutcome {
+  requiresInformation?: string[];
+  requiresFlags?: string[];
+  turns?: number[];
 }
 
 export interface ScenarioAction {
@@ -51,6 +58,7 @@ export interface ScenarioAction {
   grantsInformation: string[];
   repeatPolicy?: ScenarioActionRepeatPolicy;
   outcomesByTurn?: Record<number, ScenarioActionTurnOutcome>;
+  conditionalOutcomes?: ScenarioActionConditionalOutcome[];
   setsFlags?: Record<string, boolean | number | string>;
   metricEffects?: Partial<SimulationMetrics>;
   result: string;
@@ -128,6 +136,10 @@ export interface ScenarioOutcomeSummaryDefinition {
 
 export interface StatefulScenarioResultConfig {
   outcomeSummary: ScenarioOutcomeSummaryDefinition[];
+  scoredInformation?: Array<{ id: string; weight: number; reviewHint?: string }>;
+  informationFullCreditRatio?: number;
+  scoreMetrics?: Array<{ key: keyof SimulationMetrics; weight: number }>;
+  /** @deprecated scoreMetricsを使用してください。 */
   scoreMetricKeys?: Array<keyof SimulationMetrics>;
   finalMetricKeys?: Array<keyof SimulationMetrics>;
 }

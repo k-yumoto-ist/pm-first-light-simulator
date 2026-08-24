@@ -84,8 +84,9 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
   {
     id: "schedule_critical_path", title: "クリティカルパスを確認する", description: "どの遅れがリリース全体へ波及するかを確認します。", category: "schedule",
     guidedHint: "依存タスクを確認すると、優先すべき遅れが分かります。", availableFromTurn: 1, repeatPolicy: "per-turn",
-    grantsInformation: ["schedule_bottleneck"], result: "検索APIの修正が総合テスト開始を左右するボトルネックだと分かりました。",
-    whyThisResult: "タスクの依存関係を見たため、単なる残日数ではなく遅れの波及経路を確認できました。",
+    grantsInformation: [], result: "実装影響がまだ確認できていないため、依存関係の一般的な整理に留まりました。",
+    whyThisResult: "具体的な作業影響を確認してから分析すると、どの経路がボトルネックかを特定できます。",
+    conditionalOutcomes: [{ requiresInformation: ["implementation_impact"], grantsInformation: ["schedule_bottleneck"], result: "検索APIの修正が総合テスト開始を左右するボトルネックだと分かりました。", whyThisResult: "実装・API・テストの影響を確認してから依存関係を見たため、遅れの波及経路を特定できました。" }],
   },
   {
     id: "risk_quality", title: "品質リスクを整理する", description: "追加対応がレビューと回帰テストへ与える不確実性を整理します。", category: "risk",
@@ -107,9 +108,10 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
   },
   {
     id: "scope_phased_option", title: "今回と次回の範囲を分ける", description: "価値を残しながら段階的に提供する案を検討します。", category: "scope",
-    guidedHint: "背景と実装影響を確認していると、現実的な案になります。", availableFromTurn: 1, repeatPolicy: "once",
-    grantsInformation: ["release_option"], setsFlags: { alternativePrepared: true }, result: "最重要条件だけを先行し、残りを次回へ送る案を作成しました。",
-    whyThisResult: "全部かゼロかではなく、価値と作業量の単位でスコープを組み替えました。",
+    guidedHint: "背景と実装影響を確認していると、現実的な案になります。", availableFromTurn: 1, repeatPolicy: "per-turn",
+    grantsInformation: [], result: "要望の背景と実装影響が不足しているため、段階化の方向性を考えるに留まりました。",
+    whyThisResult: "価値と作業量を確認してから範囲を分けると、実行可能な段階リリース案になります。",
+    conditionalOutcomes: [{ requiresInformation: ["request_background", "real_priority", "implementation_impact"], grantsInformation: ["release_option"], setsFlags: { alternativePrepared: true }, result: "最重要条件だけを先行し、残りを次回へ送る案を作成しました。", whyThisResult: "要望の背景・優先順位・実装影響を確認していたため、価値と作業量の単位でスコープを組み替えられました。" }],
   },
   {
     id: "team_load_check", title: "チーム負荷を確認する", description: "残業・割込み・作業切替の負荷を確認します。", category: "team",
@@ -125,19 +127,19 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
   },
   {
     id: "report_customer", title: "顧客担当へ状況を共有する", description: "分かっている影響と未確定事項を佐藤へ共有します。", category: "report", stakeholderId: "sato",
-    guidedHint: "確認途中であることも含め、期待値をそろえます。", availableFromTurn: 1, repeatPolicy: "always", grantsInformation: [],
+    guidedHint: "確認途中であることも含め、期待値をそろえます。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { impactShared: true }, result: "佐藤へ、追加可否は影響確認後に回答すると共有しました。",
     whyThisResult: "結論前でも確認状況を透明にしたため、即答せず期待値を調整できました。",
   },
   {
     id: "report_decision_owner", title: "顧客決裁者へ状況を共有する", description: "高橋へ、判断が必要な論点と影響を共有します。", category: "report", stakeholderId: "takahashi",
-    guidedHint: "詳細がない段階では、共有しても判断を得られない可能性があります。", availableFromTurn: 1, repeatPolicy: "always", grantsInformation: [],
+    guidedHint: "詳細がない段階では、共有しても判断を得られない可能性があります。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { decisionOwnerContacted: true }, result: "高橋へ論点を共有しましたが、影響が未整理のため判断は保留になりました。",
     whyThisResult: "決裁者を巻き込むことは重要ですが、判断材料がなければ意思決定までは進みません。",
   },
   {
     id: "report_team", title: "開発チームへ状況を共有する", description: "追加要件が未確定であることと、着手条件を共有します。", category: "report", stakeholderId: "tanaka",
-    guidedHint: "正式判断前の先走った着手を防ぎます。", availableFromTurn: 1, repeatPolicy: "always", grantsInformation: [],
+    guidedHint: "正式判断前の先走った着手を防ぎます。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { teamBriefed: true }, result: "開発チームは、正式判断まで影響調査に留める方針を共有しました。",
     whyThisResult: "未確定事項と着手条件を分けて伝えたため、調査と実装着手の混同を防げました。",
   },

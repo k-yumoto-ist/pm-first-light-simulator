@@ -117,7 +117,15 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
     { stakeholderId: "takahashi", text: "最終段階で初めて聞く事項がありました。判断者への共有を早めてください。", fallback: true },
   ],
   resultConfig: {
-    scoreMetricKeys: ["schedule", "budget", "quality", "trust", "teamHealth", "businessValue", "riskExposure", "scopeStability", "stakeholderAlignment"],
+    scoredInformation: [
+      { id: "request_background", weight: 2, reviewHint: "要望を整理する前に佐藤へ背景を確認すると、要求の目的を判断材料にできました。" },
+      { id: "real_priority", weight: 2, reviewHint: "佐藤へ優先条件を聞くと、全部を今回入れない案を検討できました。" },
+      { id: "implementation_impact", weight: 2, reviewHint: "田中へ実装・テスト影響を確認すると、現実的な範囲を比較できました。" },
+      { id: "release_option", weight: 2, reviewHint: "背景・優先度・実装影響をそろえて段階案を作ると、別の着地点を選べました。" },
+      { id: "decision_owner", weight: 1, reviewHint: "判断前に最終意思決定者を確認すると、合意先を誤らずに済みました。" },
+    ],
+    informationFullCreditRatio: 0.8,
+    scoreMetrics: [{ key: "scopeStability", weight: 2 }, { key: "businessValue", weight: 2 }, { key: "quality", weight: 2 }, { key: "trust", weight: 1.5 }, { key: "schedule", weight: 1.5 }, { key: "riskExposure", weight: 1 }],
     finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure"],
     outcomeSummary: [
       { label: "リリース", rules: [

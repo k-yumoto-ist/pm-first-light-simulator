@@ -80,7 +80,10 @@ export const keypersonExitSimulation: StatefulScenarioDefinition = {
     { stakeholderId: "sato", requiresAll: ["customerNoticeDelayed"], text: "直前の説明だったので、こちらの準備時間が足りませんでした。" },
     { stakeholderId: "sato", text: "体制変更の事実だけでなく、継続性をどう守るかも聞きたいです。", fallback: true },
   ],
-  resultConfig: { scoreMetricKeys: ["schedule", "budget", "quality", "trust", "teamHealth", "businessValue", "riskExposure", "scopeStability", "stakeholderAlignment"], finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure"], outcomeSummary: [
+  resultConfig: { scoredInformation: [
+    { id: "exit_timing", weight: 2 }, { id: "knowledge_concentration", weight: 2, reviewHint: "分散案を作る前に本人しか知らない判断を確認すると、移転対象を具体化できました。" },
+    { id: "handover_priorities", weight: 2 }, { id: "successor_skills", weight: 2 }, { id: "customer_continuity", weight: 1 }, { id: "handover_window", weight: 1 }, { id: "team_dependencies", weight: 1 },
+  ], informationFullCreditRatio: 0.8, scoreMetrics: [{ key: "riskExposure", weight: 2 }, { key: "teamHealth", weight: 2 }, { key: "quality", weight: 1.5 }, { key: "trust", weight: 1.5 }, { key: "schedule", weight: 1 }], finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure"], outcomeSummary: [
     { label: "体制移行", rules: [{ requiresAll: ["transitionAgreed"], status: "合意済み", tone: "positive" }, { requiresAll: ["replacementAnnounced"], status: "役割交代のみ", tone: "warning" }, { requiresAll: ["transitionDeclaredDone"], status: "形式上完了", tone: "warning" }], fallbackStatus: "判断完了", fallbackTone: "neutral" },
     { label: "継続性", metric: "riskExposure" }, { label: "納期", metric: "schedule" }, { label: "チーム状態", metric: "teamHealth" }, { label: "顧客信頼", metric: "trust" },
   ] },

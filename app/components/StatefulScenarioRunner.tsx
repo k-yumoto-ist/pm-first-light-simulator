@@ -22,6 +22,7 @@ import { SituationStep } from "./SituationStep";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder, type StakeholderChatMessage } from "./StakeholderChatDrawer";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, formatTurnLabel, getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
+import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, resolveScenarioActionOutcome } from "@/src/data/statefulScenarioLogic.mjs";
 
 type PlayPhase = "briefing" | "situation" | "cockpit" | "result" | "final";
 type ChainItem = { turn: number; timing: string; kind: "information" | "decision" | "consequence"; title: string; effect: string };
@@ -60,7 +61,6 @@ function toCockpitChanges(before: SimulationMetrics, after: SimulationMetrics): 
   const previous = toCockpitMetrics(before); const current = toCockpitMetrics(after);
   return (Object.keys(previous) as Array<keyof Metrics>).filter(key => previous[key] !== current[key]).map(key => ({ key, before: previous[key], after: current[key] }));
 }
-function actionKey(action: ScenarioAction, turn: number) { return action.repeatPolicy === "per-turn" ? `${turn}:${action.id}` : `once:${action.id}`; }
 function confirmationFor(action: ScenarioAction): ActionConfirmation {
   const base = pmActions.find(item => item.id === action.category) ?? pmActions[0];
   return { title: `${action.title}を実行しますか？`, description: action.question ?? action.description, aims: ["判断材料を増やす", "確認先と質問内容を意識して情報を得る"], impacts: base.impactHints.map(item => ({ label: item.label, direction: directionMarks[item.direction] })) };
@@ -110,25 +110,28 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
 
   const getActionAvailability = (action: ScenarioAction) => {
     if (investigationsLeft <= 0) return { disabled: true, label: "調査枠を使用済み" };
-    if (action.repeatPolicy === "always") return { disabled: false };
-    if (usedActionKeys.includes(actionKey(action, turnIndex + 1))) return { disabled: true, label: action.repeatPolicy === "per-turn" ? "このターンで確認済み" : "確認済み" };
+    if (usedActionKeys.includes(getScenarioActionUsageKey(action, turnIndex + 1))) return { disabled: true, label: action.repeatPolicy === "per-turn" ? "このターンで確認済み" : "確認済み" };
     return { disabled: false };
   };
 
   const executeAction = () => {
     const action = confirmingAction;
     if (!action || getActionAvailability(action).disabled) return;
-    const turnOutcome = action.outcomesByTurn?.[turnIndex + 1];
-    const grantedInformation = turnOutcome?.grantsInformation ?? action.grantsInformation;
+    const actionOutcome = resolveScenarioActionOutcome(action, turnIndex + 1, informationIds, flags);
+    const grantedInformation = actionOutcome.grantsInformation;
     const unlocked = grantedInformation.filter(id => !informationSet.has(id));
-    const before = metrics; const after = applyMetrics(before, action.metricEffects ?? {});
-    const result = turnOutcome?.result ?? action.result;
-    const why = turnOutcome?.whyThisResult ?? action.whyThisResult ?? "確認先と質問内容に応じた情報が得られました。";
+    const before = metrics; const after = applyMetrics(before, actionOutcome.metricEffects);
+    const result = difficulty === "challenge" && actionOutcome.missingInformation.length
+      ? "分析を具体化する前提が不足し、一般的な整理に留まりました。"
+      : actionOutcome.result;
+    const why = difficulty === "challenge" && actionOutcome.missingInformation.length
+      ? "この分析を具体化するための前提情報が不足していました。"
+      : actionOutcome.whyThisResult ?? "確認先と質問内容に応じた情報が得られました。";
     const changes = toCockpitChanges(before, after);
     setInformationIds(current => [...new Set([...current, ...unlocked])]);
-    setFlags(current => mergeFlags(mergeFlags(current, action.setsFlags), turnOutcome?.setsFlags));
+    setFlags(current => mergeFlags(current, actionOutcome.setsFlags));
     setMetrics(after); setInvestigationsLeft(value => value - 1);
-    if (action.repeatPolicy !== "always") setUsedActionKeys(current => [...current, actionKey(action, turnIndex + 1)]);
+    setUsedActionKeys(current => [...current, getScenarioActionUsageKey(action, turnIndex + 1)]);
     setActionUsageCounts(current => ({ ...current, [action.category]: (current[action.category] ?? 0) + 1 }));
     if (action.category === "hearing" && action.stakeholderId) {
       const question = action.question ?? action.description;
@@ -208,7 +211,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
     {phase === "cockpit" ? <SimulatorCockpit title={turn.title} contextMeta={<><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><small>{formatTimingLabel(turn.timing)}</small></>} onViewSituation={() => setPhase("situation")} metrics={cockpitMetrics} changes={[]} kicker="PMアクション" prompt="PMとして、次に何をしますか？" budget={budget} scenarioDecision={requiredDecision} actions={pmActions} usedIds={Object.keys(actionUsageCounts) as ScenarioActionCategoryId[]} usageCounts={actionUsageCounts} disabled={investigationsLeft <= 0} onSelectAction={action => { setSelectedCategoryAction(action); setActionDetailOpen(true); }} footerMessage={footerMessage} advanceLabel="このターンの判断をする" canAdvance={visibleDecisions.length > 0} onAdvance={openDecision} /> : null}
     {phase === "result" && resultDialog ? <ResultStep result={resultDialog.result} nextLabel={resultDialog.advancesTurn ? (turnIndex === scenario.turns.length - 1 ? "一連の判断を振り返る" : "次の状況へ") : "次の判断へ"} onNext={resultDialog.advancesTurn ? advanceTurn : () => { setResultDialog(undefined); setPhase("cockpit"); }} /> : null}
     <div className={`log-section ${showLog ? "is-open" : ""}`} onClick={() => setShowLog(false)}><div className="log-dialog" onClick={event => event.stopPropagation()}><button className="log-close" aria-label="プロジェクトログを閉じる" onClick={() => setShowLog(false)}>閉じる ×</button><ProjectLog logs={projectLogs} compact /></div></div>
-    {pickerCategory && selectedCategory && pickerCategory !== "hearing" ? <AccessibleDialog onClose={() => setPickerCategory(undefined)} labelledBy="scenario-action-picker-title" overlayClassName="action-detail-overlay" dialogClassName="action-detail-dialog scenario-action-picker-dialog"><header><span className="detail-code">{pmActions.find(item => item.id === pickerCategory)?.code}</span><div><p>PMアクション</p><h2 id="scenario-action-picker-title">{selectedCategory.label}</h2></div><button type="button" aria-label="具体的な行動選択を閉じる" onClick={() => setPickerCategory(undefined)}>×</button></header><ScenarioActionExplorer key={`${turn.id}-${pickerCategory}`} categories={scenario.actionCategories ?? []} actions={turnActions.filter(action => action.category !== "hearing")} stakeholders={scenario.stakeholders} difficulty={difficulty} relevantActionIds={relevantActionIds} getAvailability={getActionAvailability} onSelect={action => { setPickerCategory(undefined); setConfirmingAction(action); }} initialCategoryId={pickerCategory} allowCategoryReset={false} /></AccessibleDialog> : null}
+    {pickerCategory && selectedCategory && pickerCategory !== "hearing" ? <AccessibleDialog onClose={() => setPickerCategory(undefined)} labelledBy="scenario-action-picker-title" overlayClassName="action-detail-overlay" dialogClassName="action-detail-dialog scenario-action-picker-dialog"><header><div><p>PMアクション</p><h2 id="scenario-action-picker-title">{selectedCategory.label}</h2></div><button type="button" aria-label="具体的な行動選択を閉じる" onClick={() => setPickerCategory(undefined)}>×</button></header><ScenarioActionExplorer key={`${turn.id}-${pickerCategory}`} categories={scenario.actionCategories ?? []} actions={turnActions.filter(action => action.category !== "hearing")} stakeholders={scenario.stakeholders} difficulty={difficulty} relevantActionIds={relevantActionIds} getAvailability={getActionAvailability} onSelect={action => { setPickerCategory(undefined); setConfirmingAction(action); }} initialCategoryId={pickerCategory} allowCategoryReset={false} /></AccessibleDialog> : null}
     {actionDetailOpen && selectedCategoryAction ? <ActionDetailModal action={selectedCategoryAction} actionsLeft={investigationsLeft} disabled={investigationsLeft <= 0} onClose={() => { setActionDetailOpen(false); setSelectedCategoryAction(undefined); }} onExecute={() => { const category = selectedCategoryAction.id; setActionDetailOpen(false); setSelectedCategoryAction(undefined); if (category === "hearing") setShowContacts(true); else setPickerCategory(category); }} /> : null}
     {showContacts ? <StakeholderContactPicker stakeholders={chatStakeholders} onSelect={id => { setShowContacts(false); setSelectedStakeholderId(id); }} onClose={() => setShowContacts(false)} /> : null}
     {selectedStakeholder ? <StakeholderChatDrawer stakeholder={selectedStakeholder} messages={chatHistories[selectedStakeholder.id] ?? []} questions={stakeholderQuestions.map(action => { const availability = getActionAvailability(action); return { id: action.id, label: action.question ?? action.title, disabled: availability.disabled, statusLabel: availability.disabled ? availability.label : "実行前に確認" }; })} actionsLeft={investigationsLeft} disabled={investigationsLeft <= 0} onSelectQuestion={id => { const action = stakeholderQuestions.find(item => item.id === id); if (action) setConfirmingAction(action); }} onClose={() => setSelectedStakeholderId(undefined)} /> : null}
@@ -220,18 +223,20 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
 }
 
 function StatefulScenarioReport({ scenario, metrics, flags, informationSet, decisions, chain, onExit }: { scenario: StatefulScenarioDefinition; metrics: SimulationMetrics; flags: Record<string, boolean | number | string>; informationSet: Set<string>; decisions: DecisionRecord[]; chain: ChainItem[]; onExit: () => void }) {
-  const acquired = scenario.information.filter(info => informationSet.has(info.id)); const missed = scenario.information.filter(info => !informationSet.has(info.id));
-  const sourceActionsByInformation = new Map(scenario.information.map(info => [info.id, scenario.actions.filter(action => action.grantsInformation.includes(info.id) || Object.values(action.outcomesByTurn ?? {}).some(outcome => outcome.grantsInformation?.includes(info.id))).map(action => action.title)]));
+  const scoredInformation: Array<{ id: string; weight: number; reviewHint?: string }> = scenario.resultConfig.scoredInformation ?? scenario.information.map(info => ({ id: info.id, weight: 1 }));
+  const informationWeights = new Map(scoredInformation.map(item => [item.id, item.weight]));
+  const byImportance = (a: { id: string }, b: { id: string }) => (informationWeights.get(b.id) ?? 0) - (informationWeights.get(a.id) ?? 0);
+  const acquired = scenario.information.filter(info => informationSet.has(info.id)).sort(byImportance); const missed = scenario.information.filter(info => !informationSet.has(info.id)).sort(byImportance);
+  const sourceActionsByInformation = new Map(scenario.information.map(info => [info.id, scenario.actions.filter(action => action.grantsInformation.includes(info.id) || Object.values(action.outcomesByTurn ?? {}).some(outcome => outcome.grantsInformation?.includes(info.id)) || action.conditionalOutcomes?.some(outcome => outcome.grantsInformation?.includes(info.id))).map(action => action.title)]));
   const metricDeltas = (Object.keys(metrics) as Array<keyof SimulationMetrics>).map(key => ({ key, delta: metrics[key] - scenario.initialMetrics[key] }));
   const protectedItems = metricDeltas.filter(item => isFavorable(item.key, item.delta) && Math.abs(item.delta) >= 2).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
   const sacrificedItems = metricDeltas.filter(item => !isFavorable(item.key, item.delta) && Math.abs(item.delta) >= 2).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
   const evidenceWeights = new Map<string, number>(); decisions.flatMap(decision => decision.evidence).forEach(item => evidenceWeights.set(item.behavior, (evidenceWeights.get(item.behavior) ?? 0) + item.weight));
   const reactions = scenario.stakeholders.map(stakeholder => { const rules = scenario.reactionRules.filter(rule => rule.stakeholderId === stakeholder.id); const match = rules.find(rule => !rule.fallback && hasFlags(flags, rule.requiresAll) && (!rule.requiresAny || rule.requiresAny.some(id => Boolean(flags[id])))) ?? rules.find(rule => rule.fallback); return match ? { stakeholder, text: match.text } : null; }).filter(Boolean);
-  const scoreMetricKeys = scenario.resultConfig.scoreMetricKeys ?? (Object.keys(metrics) as Array<keyof SimulationMetrics>);
-  const outcomeValues = scoreMetricKeys.map(key => key === "riskExposure" ? 100 - metrics[key] : metrics[key]);
-  const outcomeScore = Math.round(outcomeValues.reduce((sum, value) => sum + value, 0) / outcomeValues.length);
+  const scoreMetrics = scenario.resultConfig.scoreMetrics ?? (scenario.resultConfig.scoreMetricKeys ?? (Object.keys(metrics) as Array<keyof SimulationMetrics>)).map(key => ({ key, weight: 1 }));
+  const outcomeScore = calculateOutcomeScore(metrics, scoreMetrics);
   const evidenceTotal = [...evidenceWeights.values()].reduce((sum, value) => sum + value, 0);
-  const informationScore = Math.round(acquired.length / Math.max(1, scenario.information.length) * 100);
+  const informationScore = calculateInformationScore(informationSet, scoredInformation, scenario.resultConfig.informationFullCreditRatio ?? 0.8);
   const rawDecisionScore = Math.min(100, Math.round(evidenceTotal / Math.max(1, decisions.length * 4) * 100));
   const decisionScore = Math.round(rawDecisionScore * (.55 + informationScore / 100 * .45));
   const totalScore = Math.round(outcomeScore * .5 + decisionScore * .3 + informationScore * .2);
@@ -251,7 +256,7 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
   return <FinalResultFramework mode="project" title={scenario.title} score={totalScore} style={style} summary="正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={[{ label: "プロジェクト成果", score: outcomeScore, weight: "50%" }, { label: "判断プロセス", score: decisionScore, weight: "30%" }, { label: "情報収集", score: informationScore, weight: "20%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>最初からプレイ</button></>}>
     <FinalResultSection eyebrow="プロジェクトの着地点" title="守ったもの / 犠牲になったもの"><div className="tradeoff-review"><div><h3>あなたが守ったもの</h3>{protectedItems.length ? protectedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>明確に改善した指標はありませんでした。</p>}</div><div><h3>代わりに犠牲になったもの</h3>{sacrificedItems.length ? sacrificedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>大きく悪化した指標はありませんでした。</p>}</div></div></FinalResultSection>
     <FinalResultSection eyebrow="判断の連鎖" title="判断が後からどう効いたか"><div className="decision-chain">{chain.map((item, index) => <div key={`${item.turn}-${index}`} className={`chain-${item.kind}`}><b>{formatTimingLabel(item.timing)}</b><span>{item.title}</span><strong>{item.effect}</strong>{index < chain.length - 1 ? <i>↓</i> : null}</div>)}</div></FinalResultSection>
-    <FinalResultSection eyebrow="情報収集の振り返り" title="何を知って、何を知らないまま決めたか"><div className="information-review"><div><h3>取得した重要情報</h3>{acquired.length ? <ul>{acquired.map(info => <li key={info.id}><strong>✓ {info.label}</strong><span>{info.detail}</span></li>)}</ul> : <p>重要情報を取得せずに判断しました。</p>}</div><div><h3>取得できなかった重要情報</h3>{missed.length ? <ul>{missed.map(info => <li key={info.id}><strong>— {info.label}</strong><span>{sourceActionsByInformation.get(info.id)?.join("／") || info.source}で確認できました。</span></li>)}</ul> : <p>このシナリオの重要情報をすべて確認しました。</p>}</div></div></FinalResultSection>
+    <FinalResultSection eyebrow="情報収集の振り返り" title="何を知って、何を知らないまま決めたか"><div className="information-review"><div><h3>取得した重要情報</h3>{acquired.length ? <ul>{acquired.map(info => <li key={info.id}><strong>✓ {info.label}{informationWeights.has(info.id) ? "（重要）" : ""}</strong><span>{info.detail}</span></li>)}</ul> : <p>重要情報を取得せずに判断しました。</p>}</div><div><h3>取得できなかった重要情報</h3>{missed.length ? <ul>{missed.map(info => { const scored = scoredInformation.find(item => item.id === info.id); return <li key={info.id}><strong>— {info.label}{scored ? "（重要）" : ""}</strong><span>{scored?.reviewHint ?? `${sourceActionsByInformation.get(info.id)?.join("／") || info.source}で確認できました。`}</span></li>; })}</ul> : <p>このシナリオの重要情報をすべて確認しました。</p>}</div></div></FinalResultSection>
     <FinalResultSection eyebrow="関係者の声" title="関係者はどう受け止めたか"><div className="stakeholder-voices">{reactions.map(reaction => reaction ? <article key={reaction.stakeholder.id}><span>{reaction.stakeholder.avatar}</span><div><strong>{reaction.stakeholder.name}<small>{reaction.stakeholder.role}</small></strong><p>「{reaction.text}」</p></div></article> : null)}</div></FinalResultSection>
     <FinalResultSection eyebrow="PMとしての振り返り" title="今回見られたPM行動"><div className="stateful-behavior-review">{evidenceWeights.size ? [...evidenceWeights.entries()].sort((a, b) => b[1] - a[1]).map(([tag, weight]) => <div key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><p>{weight > 2 ? "複数の場面でこの行動が見られました。" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</p></div>) : <p>今回は情報取得より即時判断を優先する傾向が見られました。別の選択で結果の違いを確かめてみましょう。</p>}</div></FinalResultSection>
     <FinalResultSection eyebrow="PMBOKで振り返る" title="今回判断した領域"><div className="stateful-domain-review">{[scenario.primaryDomain, ...scenario.relatedDomains].map(domain => <div key={domain}><strong>{pmbokDomains[domain].label}</strong><p>{pmbokDomains[domain].description}</p></div>)}</div></FinalResultSection>

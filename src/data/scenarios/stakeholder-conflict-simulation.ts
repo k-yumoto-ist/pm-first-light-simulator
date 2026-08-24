@@ -79,7 +79,11 @@ export const stakeholderConflictSimulation: StatefulScenarioDefinition = {
     { stakeholderId: "takahashi", requiresAll: ["pmUnilateral"], text: "判断材料はありましたが、決裁の責任範囲が曖昧でした。" },
     { stakeholderId: "takahashi", text: "最終判断には、比較案と各部門の条件をそろえてほしいです。", fallback: true },
   ],
-  resultConfig: { scoreMetricKeys: ["schedule", "budget", "quality", "trust", "teamHealth", "businessValue", "riskExposure", "scopeStability", "stakeholderAlignment"], finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure", "stakeholderAlignment", "businessValue"], outcomeSummary: [
+  resultConfig: { scoredInformation: [
+    { id: "sales_goal", weight: 2 }, { id: "operations_goal", weight: 2 }, { id: "it_goal", weight: 2 },
+    { id: "success_criteria", weight: 2, reviewHint: "営業・運用・情シスの目的を確認してから整理すると、共通の成功条件を作れました。" },
+    { id: "decision_owner", weight: 1 }, { id: "technical_option", weight: 1 }, { id: "rollout_timeline", weight: 1 },
+  ], informationFullCreditRatio: 0.8, scoreMetrics: [{ key: "stakeholderAlignment", weight: 2 }, { key: "businessValue", weight: 2 }, { key: "trust", weight: 1.5 }, { key: "riskExposure", weight: 1.5 }, { key: "schedule", weight: 1 }], finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure", "stakeholderAlignment", "businessValue"], outcomeSummary: [
     { label: "合意状態", rules: [{ requiresAll: ["finalAgreement"], status: "条件付き合意", tone: "positive" }, { requiresAll: ["verbalAgreement"], status: "口頭合意", tone: "warning" }, { requiresAll: ["pmUnilateral"], status: "PM判断", tone: "warning" }], fallbackStatus: "判断完了", fallbackTone: "neutral" },
     { label: "関係者合意", metric: "stakeholderAlignment" }, { label: "事業価値", metric: "businessValue" }, { label: "顧客信頼", metric: "trust" }, { label: "リスク", metric: "riskExposure" },
   ] },

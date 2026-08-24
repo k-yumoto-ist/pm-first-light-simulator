@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, resolveScenarioActionOutcome } from "../src/data/statefulScenarioLogic.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -39,6 +40,9 @@ test("uses the stateful five-turn template with a broad investigation space", as
   assert.match(types, /grantsInformation/);
   assert.match(types, /ScenarioActionRepeatPolicy/);
   assert.match(types, /outcomesByTurn/);
+  assert.match(types, /ScenarioActionConditionalOutcome/);
+  assert.match(types, /scoredInformation/);
+  assert.match(types, /scoreMetrics/);
   assert.match(types, /delayedEffects/);
   assert.match(definition, /id: "request"[\s\S]*id: "impact"[\s\S]*id: "alignment"[\s\S]*id: "consequence"[\s\S]*id: "release"/);
   assert.match(definition, /formalCommitment/);
@@ -58,7 +62,7 @@ test("uses the stateful five-turn template with a broad investigation space", as
   assert.match(definition, /actions: scopeChangeActionSpace/);
   assert.match(actionSpace, /repeatPolicy: "once"/);
   assert.match(actionSpace, /repeatPolicy: "per-turn"/);
-  assert.match(actionSpace, /repeatPolicy: "always"/);
+  assert.doesNotMatch(actionSpace, /repeatPolicy: "always"/);
   assert.match(definition, /newlyRelevantActionIds/);
   for (const id of ["scope-change", "schedule-crisis", "keyperson-exit", "stakeholder-conflict"]) assert.match(registry, new RegExp(`"${id}"`));
   assert.match(advanced, /getStatefulProjectScenario\(scenarioId\)/);
@@ -72,6 +76,12 @@ test("defines all four PROJECT scenarios for the shared Stateful runner", async 
     ["keyperson-exit", "keyperson-exit-simulation.ts", "keyperson-exit-action-space.ts"],
     ["stakeholder-conflict", "stakeholder-conflict-simulation.ts", "stakeholder-conflict-action-space.ts"],
   ];
+  const causalActionIds = {
+    "scope-change": "scope_phased_option",
+    "schedule-crisis": "sch_scope_release_option",
+    "keyperson-exit": "kp_team_distribute",
+    "stakeholder-conflict": "scf_scope_success",
+  };
   for (const [id, simulationFile, actionFile] of definitions) {
     const [simulation, actions] = await Promise.all([
       readFile(new URL(`src/data/scenarios/${simulationFile}`, root), "utf8"),
@@ -82,6 +92,11 @@ test("defines all four PROJECT scenarios for the shared Stateful runner", async 
     assert.ok(actionCount >= 18, `${id} should expose at least eighteen concrete actions broadly from turn one`);
     for (const marker of ["stakeholders:", "information:", "decisions:", "delayedEffects", "reactionRules:", "resultConfig:", "requiresInformation", "irreversible: true"]) assert.match(simulation, new RegExp(marker), `${id} missing ${marker}`);
     assert.match(actions, /grantsInformation: \[\]/, `${id} should include a low-value or wrong-source action`);
+    assert.match(simulation, /scoredInformation:/, `${id} should define weighted important information`);
+    assert.match(simulation, /scoreMetrics:/, `${id} should define weighted outcome metrics`);
+    assert.match(actions, /conditionalOutcomes:/, `${id} should include FACT to FINDING or OPTION causality`);
+    assert.doesNotMatch(actions, /repeatPolicy: "always"/, `${id} should prevent same-turn repeat reporting`);
+    assert.match(actions, new RegExp(`id: "${causalActionIds[id]}"[\\s\\S]{0,1200}?repeatPolicy: "per-turn"[\\s\\S]{0,500}?grantsInformation: \\[\\][\\s\\S]{0,1200}?conditionalOutcomes:[\\s\\S]{0,500}?requiresInformation:[\\s\\S]{0,500}?grantsInformation: \\[[^\\]]+\\]`), `${id} should withhold a representative FINDING or OPTION until its facts are acquired, then allow a later-turn retry`);
 
     const quotedIds = (text) => [...text.matchAll(/"([a-z0-9_]+)"/g)].map(match => match[1]);
     const block = (text, start, end) => text.match(new RegExp(`${start}:\\s*\\[([\\s\\S]*?)\\],\\s*${end}:`))?.[1] ?? "";
@@ -89,6 +104,9 @@ test("defines all four PROJECT scenarios for the shared Stateful runner", async 
     const stakeholderIds = new Set([...block(simulation, "stakeholders", "actionCategories").matchAll(/id:\s*"([^"]+)"/g)].map(match => match[1]));
     const actionIds = new Set([...actions.matchAll(/\bid:\s*"([^"]+)"/g)].map(match => match[1]));
     for (const match of actions.matchAll(/grantsInformation:\s*\[([^\]]*)\]/g)) for (const informationId of quotedIds(match[1])) assert.ok(informationIds.has(informationId), `${id} action references unknown information ${informationId}`);
+    for (const match of actions.matchAll(/requiresInformation:\s*\[([^\]]*)\]/g)) for (const informationId of quotedIds(match[1])) assert.ok(informationIds.has(informationId), `${id} action condition references unknown information ${informationId}`);
+    const scoredInformationBlock = simulation.match(/scoredInformation:\s*\[([\s\S]*?)\],\s*informationFullCreditRatio/)?.[1] ?? "";
+    for (const informationId of [...scoredInformationBlock.matchAll(/id:\s*"([^"]+)"/g)].map(match => match[1])) assert.ok(informationIds.has(informationId), `${id} scores unknown information ${informationId}`);
     for (const match of simulation.matchAll(/requiresInformation:\s*\[([^\]]*)\]/g)) for (const informationId of quotedIds(match[1])) assert.ok(informationIds.has(informationId), `${id} decision references unknown information ${informationId}`);
     for (const match of actions.matchAll(/stakeholderId:\s*"([^"]+)"/g)) assert.ok(stakeholderIds.has(match[1]), `${id} action references unknown stakeholder ${match[1]}`);
     for (const match of simulation.matchAll(/newlyRelevantActionIds:\s*\[([^\]]*)\]/g)) for (const actionId of quotedIds(match[1])) assert.ok(actionIds.has(actionId), `${id} turn references unknown action ${actionId}`);
@@ -98,6 +116,40 @@ test("defines all four PROJECT scenarios for the shared Stateful runner", async 
     for (const text of [simulation, actions]) for (const match of text.matchAll(/setsFlags:\s*\{([^}]*)\}/g)) for (const key of match[1].matchAll(/([A-Za-z][A-Za-z0-9]*):/g)) knownFlags.add(key[1]);
     for (const match of simulation.matchAll(/requiresAll:\s*\[([^\]]*)\]/g)) for (const flag of quotedIds(match[1])) assert.ok(knownFlags.has(flag), `${id} condition references information or unknown flag ${flag}`);
   }
+});
+
+test("scores important information and scenario metrics by weight", () => {
+  const important = [{ id: "critical", weight: 3 }, { id: "decision", weight: 2 }, { id: "minor", weight: 1 }];
+  assert.equal(calculateInformationScore(["critical", "decision"], important, 0.8), 100, "80 percent of weighted information should earn full credit");
+  assert.equal(calculateInformationScore(["minor"], important, 0.8), 21, "low-value information alone must not earn a high score");
+  assert.equal(calculateInformationScore(["noise_a", "noise_b", "noise_c"], important, 0.8), 0, "unscored information must not inflate the score");
+  assert.equal(calculateOutcomeScore({ schedule: 80, quality: 60, riskExposure: 20 }, [{ key: "schedule", weight: 2 }, { key: "quality", weight: 1 }, { key: "riskExposure", weight: 1 }]), 75);
+});
+
+test("resolves the same Action differently from acquired facts and limits per-turn repeats", () => {
+  const action = {
+    id: "build_option", repeatPolicy: "per-turn", grantsInformation: [], result: "一般的な案に留まりました。", whyThisResult: "前提情報が不足しています。",
+    conditionalOutcomes: [{ requiresInformation: ["fact_a", "fact_b"], grantsInformation: ["option"], result: "具体的な案を作りました。", whyThisResult: "必要な事実を確認していたためです。" }],
+  };
+  const missing = resolveScenarioActionOutcome(action, 1, ["fact_a"], {});
+  assert.deepEqual(missing.grantsInformation, []);
+  assert.deepEqual(missing.missingInformation, ["fact_b"]);
+  const complete = resolveScenarioActionOutcome(action, 1, ["fact_a", "fact_b"], {});
+  assert.deepEqual(complete.grantsInformation, ["option"]);
+  assert.equal(complete.usedConditionalOutcome, true);
+  assert.equal(getScenarioActionUsageKey(action, 1), "1:build_option");
+  assert.equal(getScenarioActionUsageKey(action, 2), "2:build_option", "a per-turn Action becomes available on the next turn");
+});
+
+test("keeps Action codes internal and out of player-facing components", async () => {
+  const [grid, detail, runner] = await Promise.all([
+    readFile(new URL("app/components/ActionGrid.tsx", root), "utf8"),
+    readFile(new URL("app/components/ActionDetailModal.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+  ]);
+  const playerFacing = `${grid}\n${detail}\n${runner}`;
+  assert.doesNotMatch(playerFacing, /action\.code|\.find\([^\n]+\)\?\.code/);
+  assert.doesNotMatch(playerFacing, />\s*(?:STK|SCH|RSK|SCP|TEM|COM)\s*</);
 });
 
 test("renders the stateful scenario through the canonical LIGHT flow", async () => {

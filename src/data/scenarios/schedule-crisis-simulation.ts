@@ -85,7 +85,15 @@ export const scheduleCrisisSimulation: StatefulScenarioDefinition = {
     { stakeholderId: "mori", text: "顧客へ伝える選択肢は、もう少し早くそろえられそうです。", fallback: true },
   ],
   resultConfig: {
-    scoreMetricKeys: ["schedule", "budget", "quality", "trust", "teamHealth", "businessValue", "riskExposure", "scopeStability", "stakeholderAlignment"],
+    scoredInformation: [
+      { id: "delay_cause", weight: 2, reviewHint: "開発リーダーへ原因を確認すると、単純な増員以外の回復策を検討できました。" },
+      { id: "critical_path", weight: 2, reviewHint: "原因と後続依存を確認してからクリティカルパスを分析すると、回復対象を絞れました。" },
+      { id: "quality_floor", weight: 2, reviewHint: "QAへ譲れない品質条件を確認すると、安全な日程案を比較できました。" },
+      { id: "business_deadline", weight: 2, reviewHint: "営業へ期限の背景を聞くと、対象限定などの代替案を作れました。" },
+      { id: "customer_flexibility", weight: 1 }, { id: "team_capacity", weight: 1 }, { id: "decision_owner", weight: 1 },
+    ],
+    informationFullCreditRatio: 0.8,
+    scoreMetrics: [{ key: "schedule", weight: 2 }, { key: "quality", weight: 2 }, { key: "teamHealth", weight: 1.5 }, { key: "riskExposure", weight: 1.5 }, { key: "trust", weight: 1 }],
     finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure"],
     outcomeSummary: [
       { label: "リリース方針", rules: [{ requiresAll: ["releaseDelayed"], status: "延期", tone: "warning" }, { requiresAll: ["phasedRelease"], status: "段階リリース", tone: "positive" }, { requiresAll: ["releasedFull"], status: "予定日リリース", tone: "positive" }], fallbackStatus: "判断完了", fallbackTone: "neutral" },
