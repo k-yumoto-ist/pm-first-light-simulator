@@ -142,6 +142,13 @@ export interface StatefulScenarioResultConfig {
   /** @deprecated scoreMetricsを使用してください。 */
   scoreMetricKeys?: Array<keyof SimulationMetrics>;
   finalMetricKeys?: Array<keyof SimulationMetrics>;
+  scoreWeights?: {
+    outcome: number;
+    decision: number;
+    information: number;
+  };
+  showPmStyle?: boolean;
+  learningActions?: string[];
 }
 
 export interface StakeholderReactionRule {
@@ -158,6 +165,7 @@ export interface StatefulScenarioDefinition {
   description: string;
   mode: ScenarioMode;
   supportedDifficulties: Difficulty[];
+  investigationBudget?: Partial<Record<Difficulty, number>>;
   primaryDomain: PmbokDomain;
   relatedDomains: PmbokDomain[];
   initialMetrics: SimulationMetrics;

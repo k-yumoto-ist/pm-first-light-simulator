@@ -7,6 +7,7 @@ import { pmBehaviorStandards } from "@/src/data/pmBehaviorStandards";
 import type { BehaviorStandardEvidence, Difficulty, HiddenState, ProjectState, ScenarioChoice } from "@/src/data/types";
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
 import { getStatefulProjectScenario } from "@/src/data/scenarios/stateful-project-scenarios";
+import { getStatefulTrainingScenario } from "@/src/data/training/training-scenarios";
 import StatefulScenarioRunner from "./StatefulScenarioRunner";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
@@ -49,7 +50,7 @@ function changeSymbol(key: keyof ProjectState, delta: number) {
 
 export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {
   const theme = mode === "project" ? modeThemes.project : modeThemes.training;
-  const statefulScenario = mode === "project" ? getStatefulProjectScenario(scenarioId) : undefined;
+  const statefulScenario = mode === "project" ? getStatefulProjectScenario(scenarioId) : getStatefulTrainingScenario(scenarioId);
   if (statefulScenario) {
     return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} onExit={onExit} /></div>;
   }

@@ -180,7 +180,7 @@ test("renders the stateful scenario through the canonical LIGHT flow", async () 
   assert.doesNotMatch(runner, /sideContent=/);
   assert.match(runner, /showInformation/);
   assert.match(runner, /showProjectDetails/);
-  assert.match(runner, /<FinalResultFramework mode="project"/);
+  assert.match(runner, /<FinalResultFramework mode=\{scenario\.mode\}/);
   assert.match(cockpit, /canonical-cockpit-grid/);
   assert.match(result, /presentation === "dialog"/);
   assert.match(finalResult, /総合スコア/);
@@ -196,6 +196,58 @@ test("renders the stateful scenario through the canonical LIGHT flow", async () 
   assert.match(chat, /<AccessibleDialog/);
   assert.match(intro, /プロジェクト概要/);
   assert.match(runner, /exitLabel="モード選択へ戻る" onExit=\{onExit\}/);
+});
+
+test("provides seven three-turn Stateful trainings on the shared runner", async () => {
+  const trainingFiles = [
+    "governance-training.ts",
+    "scope-training.ts",
+    "schedule-training.ts",
+    "finance-training.ts",
+    "stakeholder-training.ts",
+    "resource-training.ts",
+    "risk-training.ts",
+  ];
+  const [registry, advanced, hub, runner, framework, ...definitions] = await Promise.all([
+    readFile(new URL("src/data/training/training-scenarios.ts", root), "utf8"),
+    readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/components/FinalResultFramework.tsx", root), "utf8"),
+    ...trainingFiles.map(file => readFile(new URL(`src/data/training/${file}`, root), "utf8")),
+  ]);
+  for (const id of ["governance", "scope", "schedule", "finance", "stakeholder", "resource", "risk"]) {
+    assert.match(registry, new RegExp(`"${id}-training"`), `${id} training should be registered`);
+  }
+  assert.match(advanced, /getStatefulTrainingScenario\(scenarioId\)/);
+  assert.match(hub, /trainingScenarioCards\.map/);
+  assert.doesNotMatch(hub, /available: false|準備中/);
+  assert.match(runner, /scenario\.resultConfig\.scoreWeights/);
+  assert.match(runner, /scenario\.mode === "training"[\s\S]*outcome: \.3, decision: \.4, information: \.3/);
+  assert.match(runner, /今回身につけたい3つの行動/);
+  assert.match(runner, /hearingStakeholderIds/);
+  assert.match(runner, /acquiredImportant/);
+  assert.match(runner, /mode=\{scenario\.mode\}/);
+  assert.match(framework, /style\?: PMStyle/);
+  assert.match(framework, /\{style \?/);
+
+  for (const [index, definition] of definitions.entries()) {
+    const label = trainingFiles[index];
+    assert.match(definition, /mode: "training"/, `${label} should use training mode`);
+    assert.equal((definition.match(/timing:/g) ?? []).length, 3, `${label} should have three turns`);
+    const actionCount = (definition.match(/\baction\(/g) ?? []).length;
+    assert.ok(actionCount >= 10 && actionCount <= 14, `${label} should expose ten to fourteen concrete actions`);
+    for (const category of ["hearing", "schedule", "risk", "scope", "team", "report"]) assert.match(definition, new RegExp(`(?:category:\\s*)?"${category}"`), `${label} missing ${category}`);
+    assert.match(definition, /conditionalOutcomes:/, `${label} should include FACT to FINDING or OPTION causality`);
+    assert.match(definition, /grantsInformation: \[\]|lowValueActionIds|情報源/, `${label} should include a low-value or wrong-source action`);
+    assert.match(definition, /scoredInformation:/, `${label} should weight important information`);
+    assert.match(definition, /scoreMetrics:/, `${label} should weight theme outcomes`);
+    assert.match(definition, /evidence:\s*(?:decisionEvidence\[|\[\{)/, `${label} should score effective decisions`);
+  }
+  const scheduleDefinition = definitions[2];
+  assert.match(scheduleDefinition, /sch_team_overtime[\s\S]{0,300}grantsInformation:\s*\["quality_floor"\]/, "schedule training should make the quality floor reachable");
+  assert.match(registry, /scoreWeights:[\s\S]*outcome: 0\.3[\s\S]*decision: 0\.4[\s\S]*information: 0\.3/);
+  assert.match(registry, /learningActions/);
 });
 
 test("keeps the light-mode decision loop intact", async () => {

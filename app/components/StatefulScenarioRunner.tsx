@@ -69,7 +69,7 @@ function confirmationFor(action: ScenarioAction): ActionConfirmation {
 export default function StatefulScenarioRunner({ scenario, difficulty, onExit }: { scenario: StatefulScenarioDefinition; difficulty: Difficulty; onExit: () => void }) {
   const [phase, setPhase] = useState<PlayPhase>("briefing");
   const [turnIndex, setTurnIndex] = useState(0);
-  const investigationBudget = difficulty === "guided" ? 3 : 2;
+  const investigationBudget = scenario.investigationBudget?.[difficulty] ?? (difficulty === "guided" ? 3 : 2);
   const [investigationsLeft, setInvestigationsLeft] = useState(investigationBudget);
   const [metrics, setMetrics] = useState(scenario.initialMetrics);
   const [flags, setFlags] = useState(scenario.initialFlags);
@@ -104,7 +104,8 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
   const activeDelayedEffects = turn.delayedEffects?.filter(event => hasFlags(flags, event.requiresAll)) ?? [];
   const selectedCategory = scenario.actionCategories?.find(category => category.id === pickerCategory);
   const cockpitMetrics = toCockpitMetrics(metrics);
-  const chatStakeholders: ChatStakeholder[] = scenario.stakeholders.map(stakeholder => ({ id: stakeholder.id, name: stakeholder.name, role: stakeholder.role, initials: stakeholder.avatar, status: stakeholder.priority }));
+  const hearingStakeholderIds = new Set(turnActions.filter(action => action.category === "hearing" && action.stakeholderId).map(action => action.stakeholderId));
+  const chatStakeholders: ChatStakeholder[] = scenario.stakeholders.filter(stakeholder => hearingStakeholderIds.has(stakeholder.id)).map(stakeholder => ({ id: stakeholder.id, name: stakeholder.name, role: stakeholder.role, initials: stakeholder.avatar, status: stakeholder.priority }));
   const selectedStakeholder = chatStakeholders.find(stakeholder => stakeholder.id === selectedStakeholderId);
   const stakeholderQuestions = turnActions.filter(action => action.category === "hearing" && action.stakeholderId === selectedStakeholderId);
 
@@ -190,7 +191,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
       ...(intro.request ? [{ label: intro.requestLabel ?? "現在の相談", value: intro.request, className: "quote" }] : []),
       { label: "現時点のリスク", value: intro.risk, className: "risk", note: "情報は意図的に不完全です" },
     ];
-    return <SimulatorIntro assignmentLabel="今回の担当案件" modeLabel={modeThemes.project.label} headline="あなたは、" emphasizedHeadline={intro.emphasizedHeadline} description={intro.description} rules={[{ number: "1", title: "状況を確認", detail: "いま起きている変化を読む" }, { number: "2", title: "PMとして判断", detail: `${investigationBudget}アクションで情報を集める` }, { number: "3", title: "結果から学ぶ", detail: "過去の判断が後から影響する" }]} note="すべてを確認することはできません。何を知り、何を知らないまま判断するかもPMの選択です。" briefTitle={intro.briefTitle} briefDescription={scenario.description} briefItems={briefItems} actionLabel="PMとして案件を始める" onStart={() => setPhase("situation")} exitLabel="モード選択へ戻る" onExit={onExit} />;
+    return <SimulatorIntro assignmentLabel={scenario.mode === "training" ? "今回のトレーニング" : "今回の担当案件"} modeLabel={modeThemes[scenario.mode].label} headline="あなたは、" emphasizedHeadline={intro.emphasizedHeadline} description={intro.description} rules={[{ number: "1", title: "状況を確認", detail: "いま起きている変化を読む" }, { number: "2", title: "PMとして判断", detail: `${investigationBudget}アクションで情報を集める` }, { number: "3", title: "結果から学ぶ", detail: scenario.mode === "training" ? "考え方の型を振り返る" : "過去の判断が後から影響する" }]} note={scenario.mode === "training" ? "正解を覚えるのではなく、事実を集め、整理し、選択肢を作る順序を練習します。" : "すべてを確認することはできません。何を知り、何を知らないまま判断するかもPMの選択です。"} briefTitle={intro.briefTitle} briefDescription={scenario.description} briefItems={briefItems} actionLabel={scenario.mode === "training" ? "トレーニングを始める" : "PMとして案件を始める"} onStart={() => setPhase("situation")} exitLabel="モード選択へ戻る" onExit={onExit} />;
   }
 
   const budget = <div className="single-action-budget"><strong>{investigationsLeft}</strong><span>残り<br />アクション</span></div>;
@@ -202,7 +203,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
   const situationUnknown = difficulty === "guided" ? unknownInformation.map(info => ({ id: info.id, label: info.label })) : unknownInformation.length ? [{ id: "unconfirmed", label: "判断前に確認したい事項が残っています" }] : [];
   const openDecision = () => { if (visibleDecisions[0]) setSelectedDecision(visibleDecisions[0]); };
   const requiredDecision = <button type="button" className="scenario-decision-trigger step-scenario-decision" onClick={openDecision} disabled={!visibleDecisions.length}><span>今回の必須判断</span><strong>{turn.decisionLabel ?? `${turn.title}への対応方針`}</strong><small>未決定 — 判断する</small></button>;
-  const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes.project.label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button></div></header>;
+  const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes[scenario.mode].label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button></div></header>;
 
   return <main className="simulation-shell stateful-canonical-shell">
     {simulationHeader}
@@ -227,6 +228,9 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
   const informationWeights = new Map(scoredInformation.map(item => [item.id, item.weight]));
   const byImportance = (a: { id: string }, b: { id: string }) => (informationWeights.get(b.id) ?? 0) - (informationWeights.get(a.id) ?? 0);
   const acquired = scenario.information.filter(info => informationSet.has(info.id)).sort(byImportance); const missed = scenario.information.filter(info => !informationSet.has(info.id)).sort(byImportance);
+  const acquiredImportant = acquired.filter(info => informationWeights.has(info.id));
+  const missedImportant = missed.filter(info => informationWeights.has(info.id));
+  const acquiredSupplemental = acquired.filter(info => !informationWeights.has(info.id));
   const sourceActionsByInformation = new Map(scenario.information.map(info => [info.id, scenario.actions.filter(action => action.grantsInformation.includes(info.id) || Object.values(action.outcomesByTurn ?? {}).some(outcome => outcome.grantsInformation?.includes(info.id)) || action.conditionalOutcomes?.some(outcome => outcome.grantsInformation?.includes(info.id))).map(action => action.title)]));
   const metricDeltas = (Object.keys(metrics) as Array<keyof SimulationMetrics>).map(key => ({ key, delta: metrics[key] - scenario.initialMetrics[key] }));
   const protectedItems = metricDeltas.filter(item => isFavorable(item.key, item.delta) && Math.abs(item.delta) >= 2).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
@@ -239,7 +243,11 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
   const informationScore = calculateInformationScore(informationSet, scoredInformation, scenario.resultConfig.informationFullCreditRatio ?? 0.8);
   const rawDecisionScore = Math.min(100, Math.round(evidenceTotal / Math.max(1, decisions.length * 4) * 100));
   const decisionScore = Math.round(rawDecisionScore * (.55 + informationScore / 100 * .45));
-  const totalScore = Math.round(outcomeScore * .5 + decisionScore * .3 + informationScore * .2);
+  const scoreWeights = scenario.resultConfig.scoreWeights ?? (scenario.mode === "training"
+    ? { outcome: .3, decision: .4, information: .3 }
+    : { outcome: .5, decision: .3, information: .2 });
+  const scoreWeightTotal = scoreWeights.outcome + scoreWeights.decision + scoreWeights.information;
+  const totalScore = Math.round((outcomeScore * scoreWeights.outcome + decisionScore * scoreWeights.decision + informationScore * scoreWeights.information) / scoreWeightTotal);
   const evidenceTags = new Set(evidenceWeights.keys());
   const style: PMStyle = evidenceTags.has("team_health_monitoring") || metrics.teamHealth >= 80
     ? { code: "TEAM PROTECTOR", description: "納期や要望だけでなく、チームが継続して動ける状態を守る判断が多く見られました。" }
@@ -253,12 +261,27 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
   const finalMetricKeys = scenario.resultConfig.finalMetricKeys ?? (["schedule", "quality", "trust", "teamHealth", "riskExposure"] as Array<keyof SimulationMetrics>);
   const finalMetrics = finalMetricKeys.map(key => ({ label: metricLabels[key], value: getMetricDisplayValue(key, metrics[key]), status: getMetricStatusLabel(key, metrics[key]) }));
   const outcomeSummary = scenario.resultConfig.outcomeSummary.map(item => resolveOutcomeSummaryItem(item, metrics, flags));
-  return <FinalResultFramework mode="project" title={scenario.title} score={totalScore} style={style} summary="正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={[{ label: "プロジェクト成果", score: outcomeScore, weight: "50%" }, { label: "判断プロセス", score: decisionScore, weight: "30%" }, { label: "情報収集", score: informationScore, weight: "20%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>最初からプレイ</button></>}>
-    <FinalResultSection eyebrow="プロジェクトの着地点" title="守ったもの / 犠牲になったもの"><div className="tradeoff-review"><div><h3>あなたが守ったもの</h3>{protectedItems.length ? protectedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>明確に改善した指標はありませんでした。</p>}</div><div><h3>代わりに犠牲になったもの</h3>{sacrificedItems.length ? sacrificedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>大きく悪化した指標はありませんでした。</p>}</div></div></FinalResultSection>
-    <FinalResultSection eyebrow="判断の連鎖" title="判断が後からどう効いたか"><div className="decision-chain">{chain.map((item, index) => <div key={`${item.turn}-${index}`} className={`chain-${item.kind}`}><b>{formatTimingLabel(item.timing)}</b><span>{item.title}</span><strong>{item.effect}</strong>{index < chain.length - 1 ? <i>↓</i> : null}</div>)}</div></FinalResultSection>
-    <FinalResultSection eyebrow="情報収集の振り返り" title="何を知って、何を知らないまま決めたか"><div className="information-review"><div><h3>取得した重要情報</h3>{acquired.length ? <ul>{acquired.map(info => <li key={info.id}><strong>✓ {info.label}{informationWeights.has(info.id) ? "（重要）" : ""}</strong><span>{info.detail}</span></li>)}</ul> : <p>重要情報を取得せずに判断しました。</p>}</div><div><h3>取得できなかった重要情報</h3>{missed.length ? <ul>{missed.map(info => { const scored = scoredInformation.find(item => item.id === info.id); return <li key={info.id}><strong>— {info.label}{scored ? "（重要）" : ""}</strong><span>{scored?.reviewHint ?? `${sourceActionsByInformation.get(info.id)?.join("／") || info.source}で確認できました。`}</span></li>; })}</ul> : <p>このシナリオの重要情報をすべて確認しました。</p>}</div></div></FinalResultSection>
-    <FinalResultSection eyebrow="関係者の声" title="関係者はどう受け止めたか"><div className="stakeholder-voices">{reactions.map(reaction => reaction ? <article key={reaction.stakeholder.id}><span>{reaction.stakeholder.avatar}</span><div><strong>{reaction.stakeholder.name}<small>{reaction.stakeholder.role}</small></strong><p>「{reaction.text}」</p></div></article> : null)}</div></FinalResultSection>
-    <FinalResultSection eyebrow="PMとしての振り返り" title="今回見られたPM行動"><div className="stateful-behavior-review">{evidenceWeights.size ? [...evidenceWeights.entries()].sort((a, b) => b[1] - a[1]).map(([tag, weight]) => <div key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><p>{weight > 2 ? "複数の場面でこの行動が見られました。" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</p></div>) : <p>今回は情報取得より即時判断を優先する傾向が見られました。別の選択で結果の違いを確かめてみましょう。</p>}</div></FinalResultSection>
+  const breakdown = [
+    { label: "プロジェクト成果", score: outcomeScore, weight: `${Math.round(scoreWeights.outcome / scoreWeightTotal * 100)}%` },
+    { label: "判断プロセス", score: decisionScore, weight: `${Math.round(scoreWeights.decision / scoreWeightTotal * 100)}%` },
+    { label: "情報収集", score: informationScore, weight: `${Math.round(scoreWeights.information / scoreWeightTotal * 100)}%` },
+  ];
+  const behaviorEntries = [...evidenceWeights.entries()].sort((a, b) => b[1] - a[1]);
+  const informationReview = <FinalResultSection eyebrow="情報収集の振り返り" title="何を知って、何を知らないまま決めたか"><div className="information-review"><div><h3>取得した重要情報</h3>{acquiredImportant.length ? <ul>{acquiredImportant.map(info => <li key={info.id}><strong>✓ {info.label}</strong><span>{info.detail}</span></li>)}</ul> : <p>重要情報を取得せずに判断しました。</p>}{acquiredSupplemental.length ? <><h3>その他に確認した情報</h3><ul>{acquiredSupplemental.map(info => <li key={info.id}><strong>✓ {info.label}</strong><span>{info.detail}</span></li>)}</ul></> : null}</div><div><h3>見落とした重要情報</h3>{missedImportant.length ? <ul>{missedImportant.map(info => { const scored = scoredInformation.find(item => item.id === info.id); return <li key={info.id}><strong>— {info.label}</strong><span>{scored?.reviewHint ?? `${sourceActionsByInformation.get(info.id)?.join("／") || info.source}で確認できました。`}</span></li>; })}</ul> : <p>このシナリオの重要情報をすべて確認しました。</p>}</div></div></FinalResultSection>;
+  const decisionChain = <FinalResultSection eyebrow="判断の連鎖" title={scenario.mode === "training" ? "事実から判断まで、どうつないだか" : "判断が後からどう効いたか"}><div className="decision-chain">{chain.map((item, index) => <div key={`${item.turn}-${index}`} className={`chain-${item.kind}`}><b>{formatTimingLabel(item.timing)}</b><span>{item.title}</span><strong>{item.effect}</strong>{index < chain.length - 1 ? <i>↓</i> : null}</div>)}</div></FinalResultSection>;
+  return <FinalResultFramework mode={scenario.mode} title={scenario.title} score={totalScore} style={scenario.resultConfig.showPmStyle ?? scenario.mode === "project" ? style : undefined} summary={scenario.mode === "training" ? "プロジェクト成果よりも、必要な事実を集め、整理し、判断へつなげたプロセスを重く評価しています。" : "正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。"} outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={breakdown} actions={<><button className="v2-secondary" onClick={onExit}>別のテーマを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>{scenario.mode === "training" ? "もう一度挑戦" : "最初からプレイ"}</button></>}>
+    {scenario.mode === "training" ? <>
+      <FinalResultSection eyebrow="良かった判断" title="今回できていた考え方"><div className="stateful-behavior-review">{behaviorEntries.length ? behaviorEntries.slice(0, 4).map(([tag, weight]) => <div key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><p>{weight > 2 ? "複数の場面でこの行動が見られました。" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</p></div>) : <p>別の情報収集順も試し、判断材料の違いを確かめてみましょう。</p>}</div></FinalResultSection>
+      {informationReview}
+      {decisionChain}
+      <FinalResultSection eyebrow="次回に向けて" title="今回身につけたい3つの行動"><div className="stateful-domain-review">{(scenario.resultConfig.learningActions ?? []).slice(0, 3).map((action, index) => <div key={action}><strong>{index + 1}</strong><p>{action}</p></div>)}</div></FinalResultSection>
+    </> : <>
+      <FinalResultSection eyebrow="プロジェクトの着地点" title="守ったもの / 犠牲になったもの"><div className="tradeoff-review"><div><h3>あなたが守ったもの</h3>{protectedItems.length ? protectedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>明確に改善した指標はありませんでした。</p>}</div><div><h3>代わりに犠牲になったもの</h3>{sacrificedItems.length ? sacrificedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>大きく悪化した指標はありませんでした。</p>}</div></div></FinalResultSection>
+      {decisionChain}
+      {informationReview}
+      <FinalResultSection eyebrow="関係者の声" title="関係者はどう受け止めたか"><div className="stakeholder-voices">{reactions.map(reaction => reaction ? <article key={reaction.stakeholder.id}><span>{reaction.stakeholder.avatar}</span><div><strong>{reaction.stakeholder.name}<small>{reaction.stakeholder.role}</small></strong><p>「{reaction.text}」</p></div></article> : null)}</div></FinalResultSection>
+      <FinalResultSection eyebrow="PMとしての振り返り" title="今回見られたPM行動"><div className="stateful-behavior-review">{behaviorEntries.length ? behaviorEntries.map(([tag, weight]) => <div key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><p>{weight > 2 ? "複数の場面でこの行動が見られました。" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</p></div>) : <p>今回は情報取得より即時判断を優先する傾向が見られました。別の選択で結果の違いを確かめてみましょう。</p>}</div></FinalResultSection>
+    </>}
     <FinalResultSection eyebrow="PMBOKで振り返る" title="今回判断した領域"><div className="stateful-domain-review">{[scenario.primaryDomain, ...scenario.relatedDomains].map(domain => <div key={domain}><strong>{pmbokDomains[domain].label}</strong><p>{pmbokDomains[domain].description}</p></div>)}</div></FinalResultSection>
   </FinalResultFramework>;
 }

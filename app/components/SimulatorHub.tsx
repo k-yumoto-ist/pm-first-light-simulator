@@ -4,22 +4,13 @@ import { useEffect, useState } from "react";
 import PMSimulator from "./PMSimulator";
 import AdvancedSimulator from "./AdvancedSimulator";
 import { scenarios } from "@/src/data/scenarios";
-import type { Difficulty, PmbokDomain } from "@/src/data/types";
+import type { Difficulty } from "@/src/data/types";
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
+import { trainingScenarioCards } from "@/src/data/training/training-scenarios";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { difficultyLabels } from "../data/uiLabels";
 
 type View = "home" | "light" | "training" | "scenario" | "advanced";
-
-const trainingDomains: Array<{ id: PmbokDomain; label: string; icon: string; available: boolean }> = [
-  { id: "scope", label: "スコープ", icon: "◎", available: true },
-  { id: "schedule", label: "スケジュール", icon: "◷", available: true },
-  { id: "resources", label: "リソース", icon: "♟", available: true },
-  { id: "stakeholders", label: "ステークホルダー", icon: "◇", available: true },
-  { id: "governance", label: "ガバナンス", icon: "⌂", available: false },
-  { id: "finance", label: "財務", icon: "¥", available: false },
-  { id: "risk", label: "リスク", icon: "△", available: false },
-];
 
 const difficulties: Array<{ id: Difficulty; label: string; description: string }> = [
   { id: "guided", label: difficultyLabels.guided, description: "見るべきポイントと影響の方向を確認しながら進めます。" },
@@ -57,14 +48,13 @@ export default function SimulatorHub() {
 
           {view === "training" ? (
             <div className="v2-domain-grid">
-              {trainingDomains.map((domain) => {
-                const scenario = scenarios.find((item) => item.primaryDomain === domain.id);
-                const active = scenario?.id === selectedScenarioId;
+              {trainingScenarioCards.map((domain) => {
+                const active = domain.id === selectedScenarioId;
                 return (
-                  <button key={domain.id} disabled={!domain.available} className={`v2-select-card ${active ? "selected" : ""}`} onClick={() => scenario && selectScenario(scenario.id)}>
+                  <button key={domain.id} className={`v2-select-card ${active ? "selected" : ""}`} onClick={() => selectScenario(domain.id)}>
                     <span className="v2-select-icon">{domain.icon}</span>
                     <strong>{domain.label}</strong>
-                    <small>{domain.available ? scenario?.subtitle : "準備中"}</small>
+                    <small>{domain.description}</small>
                   </button>
                 );
               })}
@@ -114,7 +104,7 @@ export default function SimulatorHub() {
           <span className="v2-mode-number">01</span><p>{modeThemes.light.label}</p><h2>初めての<br />プロジェクトマネジメント</h2><small>既存の4ターンを通じて、PMの基本を体験</small><b>プレイする →</b>
         </button>
         <button className={`v2-mode-card ${modeThemes.training.className}`} style={modeThemeStyle("training")} onClick={() => { setEntryMode("training"); setView("training"); }}>
-          <span className="v2-mode-number">02</span><p>{modeThemes.training.label}</p><h2>特定テーマを<br />集中的に練習する</h2><small>スコープ・スケジュール・リソース・ステークホルダー</small><b>選ぶ →</b>
+          <span className="v2-mode-number">02</span><p>{modeThemes.training.label}</p><h2>特定テーマを<br />集中的に練習する</h2><small>PMBOK 7領域の考え方を3ターンで練習</small><b>選ぶ →</b>
         </button>
         <button className={`v2-mode-card ${modeThemes.project.className}`} style={modeThemeStyle("project")} onClick={() => { setEntryMode("project"); setView("scenario"); }}>
           <span className="v2-mode-number">03</span><p>{modeThemes.project.label}</p><h2>複雑な案件で<br />PMとして悩む</h2><small>追加要件・遅延・離脱・関係者対立</small><b>選ぶ →</b>
