@@ -88,6 +88,7 @@ export interface StatefulScenarioTurn {
   title: string;
   situation: string;
   thinkingPoint: string;
+  decisionLabel?: string;
   visibleInformation: string[];
   /** @deprecated 表示候補の制限ではなく、現在とくに関連する行動の印としてのみ使用します。 */
   actionIds?: string[];
@@ -95,6 +96,40 @@ export interface StatefulScenarioTurn {
   decisions: ScenarioDecision[];
   eventByFlags?: Array<{ requiresAll: string[]; text: string }>;
   delayedEffects?: Array<{ requiresAll: string[]; metricEffects: Partial<SimulationMetrics>; text: string; chainEffect: string }>;
+}
+
+export interface StatefulScenarioIntro {
+  emphasizedHeadline: string;
+  description: string;
+  briefTitle: string;
+  phase: string;
+  team: string;
+  issueLabel: string;
+  issue: string;
+  requestLabel?: string;
+  request?: string;
+  risk: string;
+}
+
+export interface ScenarioOutcomeRule {
+  requiresAll?: string[];
+  requiresAny?: string[];
+  status: string;
+  tone: "positive" | "neutral" | "warning" | "negative";
+}
+
+export interface ScenarioOutcomeSummaryDefinition {
+  label: string;
+  metric?: keyof SimulationMetrics;
+  rules?: ScenarioOutcomeRule[];
+  fallbackStatus?: string;
+  fallbackTone?: "positive" | "neutral" | "warning" | "negative";
+}
+
+export interface StatefulScenarioResultConfig {
+  outcomeSummary: ScenarioOutcomeSummaryDefinition[];
+  scoreMetricKeys?: Array<keyof SimulationMetrics>;
+  finalMetricKeys?: Array<keyof SimulationMetrics>;
 }
 
 export interface StakeholderReactionRule {
@@ -115,10 +150,12 @@ export interface StatefulScenarioDefinition {
   relatedDomains: PmbokDomain[];
   initialMetrics: SimulationMetrics;
   initialFlags: Record<string, boolean | number | string>;
+  intro: StatefulScenarioIntro;
   stakeholders: ScenarioStakeholder[];
   information: ScenarioInformation[];
   actions: ScenarioAction[];
   actionCategories?: ScenarioActionCategory[];
   turns: StatefulScenarioTurn[];
   reactionRules: StakeholderReactionRule[];
+  resultConfig: StatefulScenarioResultConfig;
 }

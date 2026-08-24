@@ -24,11 +24,13 @@ test("server-renders the simulator mode hub", async () => {
 });
 
 test("uses the stateful five-turn template with a broad investigation space", async () => {
-  const [runner, explorer, definition, actionSpace, types, advanced] = await Promise.all([
+  const [runner, explorer, definition, actionSpace, categories, registry, types, advanced] = await Promise.all([
     readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
     readFile(new URL("app/components/ScenarioActionExplorer.tsx", root), "utf8"),
     readFile(new URL("src/data/scenarios/scope-change-simulation.ts", root), "utf8"),
     readFile(new URL("src/data/scenarios/scope-change-action-space.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/stateful-action-categories.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/stateful-project-scenarios.ts", root), "utf8"),
     readFile(new URL("src/data/statefulScenarioTypes.ts", root), "utf8"),
     readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"),
   ]);
@@ -49,7 +51,7 @@ test("uses the stateful five-turn template with a broad investigation space", as
   assert.match(runner, /sourceActionsByInformation/);
   assert.match(explorer, /誰に聞きますか？/);
   assert.match(explorer, /何を確認しますか？/);
-  for (const category of ["hearing", "schedule", "risk", "scope", "team", "report"]) assert.match(actionSpace, new RegExp(`id: "${category}"`));
+  for (const category of ["hearing", "schedule", "risk", "scope", "team", "report"]) assert.match(categories, new RegExp(`id: "${category}"`));
   const concreteActions = actionSpace.split("export const scopeChangeActionSpace")[1];
   assert.equal((concreteActions.match(/^    id: "/gm) ?? []).length, 20, "scope scenario should expose twenty concrete actions per turn");
   assert.equal((concreteActions.match(/availableFromTurn: 1/g) ?? []).length, 20, "all concrete actions should remain selectable from every turn");
@@ -58,7 +60,44 @@ test("uses the stateful five-turn template with a broad investigation space", as
   assert.match(actionSpace, /repeatPolicy: "per-turn"/);
   assert.match(actionSpace, /repeatPolicy: "always"/);
   assert.match(definition, /newlyRelevantActionIds/);
-  assert.match(advanced, /mode === "project" && scenarioId === "scope-change"/);
+  for (const id of ["scope-change", "schedule-crisis", "keyperson-exit", "stakeholder-conflict"]) assert.match(registry, new RegExp(`"${id}"`));
+  assert.match(advanced, /getStatefulProjectScenario\(scenarioId\)/);
+  assert.doesNotMatch(advanced, /scenarioId === "scope-change"/);
+});
+
+test("defines all four PROJECT scenarios for the shared Stateful runner", async () => {
+  const definitions = [
+    ["scope-change", "scope-change-simulation.ts", "scope-change-action-space.ts"],
+    ["schedule-crisis", "schedule-crisis-simulation.ts", "schedule-crisis-action-space.ts"],
+    ["keyperson-exit", "keyperson-exit-simulation.ts", "keyperson-exit-action-space.ts"],
+    ["stakeholder-conflict", "stakeholder-conflict-simulation.ts", "stakeholder-conflict-action-space.ts"],
+  ];
+  for (const [id, simulationFile, actionFile] of definitions) {
+    const [simulation, actions] = await Promise.all([
+      readFile(new URL(`src/data/scenarios/${simulationFile}`, root), "utf8"),
+      readFile(new URL(`src/data/scenarios/${actionFile}`, root), "utf8"),
+    ]);
+    assert.equal((simulation.match(/timing:/g) ?? []).length, 5, `${id} should have five turns`);
+    const actionCount = (actions.match(/availableFromTurn: 1/g) ?? []).length;
+    assert.ok(actionCount >= 18, `${id} should expose at least eighteen concrete actions broadly from turn one`);
+    for (const marker of ["stakeholders:", "information:", "decisions:", "delayedEffects", "reactionRules:", "resultConfig:", "requiresInformation", "irreversible: true"]) assert.match(simulation, new RegExp(marker), `${id} missing ${marker}`);
+    assert.match(actions, /grantsInformation: \[\]/, `${id} should include a low-value or wrong-source action`);
+
+    const quotedIds = (text) => [...text.matchAll(/"([a-z0-9_]+)"/g)].map(match => match[1]);
+    const block = (text, start, end) => text.match(new RegExp(`${start}:\\s*\\[([\\s\\S]*?)\\],\\s*${end}:`))?.[1] ?? "";
+    const informationIds = new Set([...block(simulation, "information", "actions").matchAll(/id:\s*"([^"]+)"/g)].map(match => match[1]));
+    const stakeholderIds = new Set([...block(simulation, "stakeholders", "actionCategories").matchAll(/id:\s*"([^"]+)"/g)].map(match => match[1]));
+    const actionIds = new Set([...actions.matchAll(/\bid:\s*"([^"]+)"/g)].map(match => match[1]));
+    for (const match of actions.matchAll(/grantsInformation:\s*\[([^\]]*)\]/g)) for (const informationId of quotedIds(match[1])) assert.ok(informationIds.has(informationId), `${id} action references unknown information ${informationId}`);
+    for (const match of simulation.matchAll(/requiresInformation:\s*\[([^\]]*)\]/g)) for (const informationId of quotedIds(match[1])) assert.ok(informationIds.has(informationId), `${id} decision references unknown information ${informationId}`);
+    for (const match of actions.matchAll(/stakeholderId:\s*"([^"]+)"/g)) assert.ok(stakeholderIds.has(match[1]), `${id} action references unknown stakeholder ${match[1]}`);
+    for (const match of simulation.matchAll(/newlyRelevantActionIds:\s*\[([^\]]*)\]/g)) for (const actionId of quotedIds(match[1])) assert.ok(actionIds.has(actionId), `${id} turn references unknown action ${actionId}`);
+
+    const initialFlags = simulation.match(/initialFlags:\s*\{([\s\S]*?)\},\s*intro:/)?.[1] ?? "";
+    const knownFlags = new Set([...initialFlags.matchAll(/([A-Za-z][A-Za-z0-9]*):/g)].map(match => match[1]));
+    for (const text of [simulation, actions]) for (const match of text.matchAll(/setsFlags:\s*\{([^}]*)\}/g)) for (const key of match[1].matchAll(/([A-Za-z][A-Za-z0-9]*):/g)) knownFlags.add(key[1]);
+    for (const match of simulation.matchAll(/requiresAll:\s*\[([^\]]*)\]/g)) for (const flag of quotedIds(match[1])) assert.ok(knownFlags.has(flag), `${id} condition references information or unknown flag ${flag}`);
+  }
 });
 
 test("renders the stateful scenario through the canonical LIGHT flow", async () => {

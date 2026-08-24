@@ -6,7 +6,7 @@ import { pmbokDomains } from "@/src/data/pmbokDomains";
 import { pmBehaviorStandards } from "@/src/data/pmBehaviorStandards";
 import type { BehaviorStandardEvidence, Difficulty, HiddenState, ProjectState, ScenarioChoice } from "@/src/data/types";
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
-import { scopeChangeSimulation } from "@/src/data/scenarios/scope-change-simulation";
+import { getStatefulProjectScenario } from "@/src/data/scenarios/stateful-project-scenarios";
 import StatefulScenarioRunner from "./StatefulScenarioRunner";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
@@ -49,8 +49,9 @@ function changeSymbol(key: keyof ProjectState, delta: number) {
 
 export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {
   const theme = mode === "project" ? modeThemes.project : modeThemes.training;
-  if (mode === "project" && scenarioId === "scope-change") {
-    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={scopeChangeSimulation} difficulty={difficulty} onExit={onExit} /></div>;
+  const statefulScenario = mode === "project" ? getStatefulProjectScenario(scenarioId) : undefined;
+  if (statefulScenario) {
+    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} onExit={onExit} /></div>;
   }
   return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} mode={mode} onExit={onExit} /></div>;
 }

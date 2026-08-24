@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { pmBehaviorStandards } from "@/src/data/pmBehaviorStandards";
 import { pmbokDomains } from "@/src/data/pmbokDomains";
 import type { BehaviorStandardEvidence, Difficulty } from "@/src/data/types";
-import type { ScenarioAction, ScenarioActionCategoryId, ScenarioDecision, SimulationMetrics, StatefulScenarioDefinition } from "@/src/data/statefulScenarioTypes";
+import type { ScenarioAction, ScenarioActionCategoryId, ScenarioDecision, ScenarioOutcomeSummaryDefinition, SimulationMetrics, StatefulScenarioDefinition } from "@/src/data/statefulScenarioTypes";
 import { learningByArea, pmActions } from "../data/actions";
 import type { PMActionDefinition } from "../data/actions";
 import type { ActionLog, ActionResult, MetricChange, Metrics, ScoreKey } from "../types/game";
@@ -46,6 +46,14 @@ function applyMetrics(current: SimulationMetrics, effects: Partial<SimulationMet
 function mergeFlags(current: Record<string, boolean | number | string>, changes?: Record<string, boolean | number | string>) { return changes ? { ...current, ...changes } : current; }
 function hasFlags(flags: Record<string, boolean | number | string>, ids: string[] = []) { return ids.every(id => Boolean(flags[id])); }
 function summaryTone(key: keyof SimulationMetrics, value: number): OutcomeSummaryItem["tone"] { return healthStatusTones[getMetricHealthStatus(key, value)]; }
+function matchesOutcomeRule(flags: Record<string, boolean | number | string>, rule: { requiresAll?: string[]; requiresAny?: string[] }) {
+  return hasFlags(flags, rule.requiresAll) && (!rule.requiresAny || rule.requiresAny.some(id => Boolean(flags[id])));
+}
+function resolveOutcomeSummaryItem(definition: ScenarioOutcomeSummaryDefinition, metrics: SimulationMetrics, flags: Record<string, boolean | number | string>): OutcomeSummaryItem {
+  if (definition.metric) return { label: definition.label, status: getMetricStatusLabel(definition.metric, metrics[definition.metric]), tone: summaryTone(definition.metric, metrics[definition.metric]) };
+  const matched = definition.rules?.find(rule => matchesOutcomeRule(flags, rule));
+  return { label: definition.label, status: matched?.status ?? definition.fallbackStatus ?? "判断完了", tone: matched?.tone ?? definition.fallbackTone ?? "neutral" };
+}
 function isFavorable(key: keyof SimulationMetrics, delta: number) { return key === "riskExposure" ? delta < 0 : delta > 0; }
 function toCockpitMetrics(metrics: SimulationMetrics): Metrics { return { schedule: metrics.schedule, quality: metrics.quality, trust: metrics.trust, team: metrics.teamHealth, scopeStability: metrics.scopeStability, riskExposure: metrics.riskExposure, stakeholderAlignment: metrics.stakeholderAlignment }; }
 function toCockpitChanges(before: SimulationMetrics, after: SimulationMetrics): MetricChange[] {
@@ -148,9 +156,10 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
     const record: DecisionRecord = { turn: turnIndex + 1, timing: turn.timing, title: decision.title, whatHappened, why: decision.why, pmPoint: decision.pmPoint, before: metrics, after, evidence: decision.evidence };
     setMetrics(after); setFlags(nextFlags); setDecisions(current => [...current, record]);
     setChain(current => [...current, ...appliedChains.map(effect => ({ turn: turnIndex + 1, timing: turn.timing, kind: "decision" as const, title: decision.title, effect }))]);
-    setProjectLogs(current => [...current, { id: `decision-${turnIndex + 1}`, kind: "action", turn: turnIndex + 1, day: turnIndex + 1, event: turn.title, label: decision.title, detail: decision.description, result: whatHappened, why: decision.why, learning: decision.pmPoint, changes, tags: ["scope", "stakeholder"] }]);
+    const decisionTags = categoryTags[scenario.primaryDomain === "schedule" ? "schedule" : scenario.primaryDomain === "risk" ? "risk" : scenario.primaryDomain === "resources" ? "team" : scenario.primaryDomain === "stakeholders" ? "hearing" : "scope"];
+    setProjectLogs(current => [...current, { id: `decision-${turnIndex + 1}`, kind: "action", turn: turnIndex + 1, day: turnIndex + 1, event: turn.title, label: decision.title, detail: decision.description, result: whatHappened, why: decision.why, learning: decision.pmPoint, changes, tags: decisionTags }]);
     setSelectedDecision(undefined);
-    setResultDialog({ result: { title: decision.title, occurred: whatHappened, why: decision.why, learning: decision.pmPoint, tags: ["scope", "stakeholder"], changes, unlocked: [] }, advancesTurn: true });
+    setResultDialog({ result: { title: decision.title, occurred: whatHappened, why: decision.why, learning: decision.pmPoint, tags: decisionTags, changes, unlocked: [] }, advancesTurn: true });
     setPhase("result");
   };
 
@@ -169,7 +178,17 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
   };
 
   if (phase === "final") return <StatefulScenarioReport scenario={scenario} metrics={metrics} flags={flags} informationSet={informationSet} decisions={decisions} chain={chain} onExit={onExit} />;
-  if (phase === "briefing") return <SimulatorIntro assignmentLabel="今回の担当案件" modeLabel={modeThemes.project.label} headline="あなたは、" emphasizedHeadline="リリース直前のPMです。" description="追加要件の背景と影響は、まだ十分に分かっていません。状況を読み、関係者から情報を集め、限られたアクションで判断してください。" rules={[{ number: "1", title: "状況を確認", detail: "いま起きている変化を読む" }, { number: "2", title: "PMとして判断", detail: `${investigationBudget}アクションで情報を集める` }, { number: "3", title: "結果から学ぶ", detail: "過去の判断が後から影響する" }]} note="すべてを確認することはできません。何を知り、何を知らないまま判断するかもPMの選択です。" briefTitle="顧客ポータル改善" briefDescription={scenario.description} briefItems={[{ label: "現在のフェーズ", value: "リリース直前" }, { label: "チーム", value: "PM・開発・品質保証・顧客" }, { label: "現在の課題", value: "追加要件" }, { label: "顧客からの要望", value: "検索条件を追加してほしい", className: "quote" }, { label: "現時点のリスク", value: "影響範囲がまだ分かっていない", className: "risk", note: "情報は意図的に不完全です" }]} actionLabel="PMとして案件を始める" onStart={() => setPhase("situation")} exitLabel="モード選択へ戻る" onExit={onExit} />;
+  if (phase === "briefing") {
+    const intro = scenario.intro;
+    const briefItems = [
+      { label: "現在のフェーズ", value: intro.phase },
+      { label: "チーム", value: intro.team },
+      { label: intro.issueLabel, value: intro.issue },
+      ...(intro.request ? [{ label: intro.requestLabel ?? "現在の相談", value: intro.request, className: "quote" }] : []),
+      { label: "現時点のリスク", value: intro.risk, className: "risk", note: "情報は意図的に不完全です" },
+    ];
+    return <SimulatorIntro assignmentLabel="今回の担当案件" modeLabel={modeThemes.project.label} headline="あなたは、" emphasizedHeadline={intro.emphasizedHeadline} description={intro.description} rules={[{ number: "1", title: "状況を確認", detail: "いま起きている変化を読む" }, { number: "2", title: "PMとして判断", detail: `${investigationBudget}アクションで情報を集める` }, { number: "3", title: "結果から学ぶ", detail: "過去の判断が後から影響する" }]} note="すべてを確認することはできません。何を知り、何を知らないまま判断するかもPMの選択です。" briefTitle={intro.briefTitle} briefDescription={scenario.description} briefItems={briefItems} actionLabel="PMとして案件を始める" onStart={() => setPhase("situation")} exitLabel="モード選択へ戻る" onExit={onExit} />;
+  }
 
   const budget = <div className="single-action-budget"><strong>{investigationsLeft}</strong><span>残り<br />アクション</span></div>;
   const footerMessage = investigationsLeft > 0 ? `調査アクションはあと${investigationsLeft}回です。残したまま最終判断することもできます。${hiddenDecisionCount > 0 ? " 得た情報によって判断案が増える場合があります。" : ""}` : `調査枠を使い切りました。${hiddenDecisionCount > 0 ? "取得した情報に応じた判断案を確認してください。" : "最終判断へ進めます。"}`;
@@ -179,7 +198,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit }:
   const situationKnown = [...turn.visibleInformation.map((label, index) => ({ id: `visible-${index}`, label })), ...acquiredInformation.map(info => ({ id: info.id, label: info.label, value: info.detail }))];
   const situationUnknown = difficulty === "guided" ? unknownInformation.map(info => ({ id: info.id, label: info.label })) : unknownInformation.length ? [{ id: "unconfirmed", label: "判断前に確認したい事項が残っています" }] : [];
   const openDecision = () => { if (visibleDecisions[0]) setSelectedDecision(visibleDecisions[0]); };
-  const requiredDecision = <button type="button" className="scenario-decision-trigger step-scenario-decision" onClick={openDecision} disabled={!visibleDecisions.length}><span>今回の必須判断</span><strong>{turn.title}への対応方針</strong><small>未決定 — 判断する</small></button>;
+  const requiredDecision = <button type="button" className="scenario-decision-trigger step-scenario-decision" onClick={openDecision} disabled={!visibleDecisions.length}><span>今回の必須判断</span><strong>{turn.decisionLabel ?? `${turn.title}への対応方針`}</strong><small>未決定 — 判断する</small></button>;
   const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes.project.label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button></div></header>;
 
   return <main className="simulation-shell stateful-canonical-shell">
@@ -208,11 +227,13 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
   const sacrificedItems = metricDeltas.filter(item => !isFavorable(item.key, item.delta) && Math.abs(item.delta) >= 2).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
   const evidenceWeights = new Map<string, number>(); decisions.flatMap(decision => decision.evidence).forEach(item => evidenceWeights.set(item.behavior, (evidenceWeights.get(item.behavior) ?? 0) + item.weight));
   const reactions = scenario.stakeholders.map(stakeholder => { const rules = scenario.reactionRules.filter(rule => rule.stakeholderId === stakeholder.id); const match = rules.find(rule => !rule.fallback && hasFlags(flags, rule.requiresAll) && (!rule.requiresAny || rule.requiresAny.some(id => Boolean(flags[id])))) ?? rules.find(rule => rule.fallback); return match ? { stakeholder, text: match.text } : null; }).filter(Boolean);
-  const outcomeValues = (Object.keys(metrics) as Array<keyof SimulationMetrics>).map(key => key === "riskExposure" ? 100 - metrics[key] : metrics[key]);
+  const scoreMetricKeys = scenario.resultConfig.scoreMetricKeys ?? (Object.keys(metrics) as Array<keyof SimulationMetrics>);
+  const outcomeValues = scoreMetricKeys.map(key => key === "riskExposure" ? 100 - metrics[key] : metrics[key]);
   const outcomeScore = Math.round(outcomeValues.reduce((sum, value) => sum + value, 0) / outcomeValues.length);
   const evidenceTotal = [...evidenceWeights.values()].reduce((sum, value) => sum + value, 0);
-  const decisionScore = Math.min(100, Math.round(evidenceTotal / Math.max(1, decisions.length * 4) * 100));
   const informationScore = Math.round(acquired.length / Math.max(1, scenario.information.length) * 100);
+  const rawDecisionScore = Math.min(100, Math.round(evidenceTotal / Math.max(1, decisions.length * 4) * 100));
+  const decisionScore = Math.round(rawDecisionScore * (.55 + informationScore / 100 * .45));
   const totalScore = Math.round(outcomeScore * .5 + decisionScore * .3 + informationScore * .2);
   const evidenceTags = new Set(evidenceWeights.keys());
   const style: PMStyle = evidenceTags.has("team_health_monitoring") || metrics.teamHealth >= 80
@@ -224,16 +245,9 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
         : evidenceTags.has("critical_path_analysis") || metrics.schedule >= 80
           ? { code: "DELIVERY FIRST", description: "期限と実現可能性を明確にし、プロジェクトを着地させる判断が多く見られました。" }
           : { code: "VALUE BALANCER", description: "顧客価値・品質・納期のバランスを見ながら、実現する範囲を整える判断が多く見られました。" };
-  const finalMetrics = (["schedule", "quality", "trust", "teamHealth", "riskExposure"] as Array<keyof SimulationMetrics>).map(key => ({ label: metricLabels[key], value: getMetricDisplayValue(key, metrics[key]), status: getMetricStatusLabel(key, metrics[key]) }));
-  const releaseStatus = flags.releaseDelayed ? "延期" : flags.releasedFull ? "予定日リリース" : flags.phasedRelease ? "段階リリース" : "判断完了";
-  const releaseTone: OutcomeSummaryItem["tone"] = flags.releaseDelayed || (flags.releasedFull && metrics.quality < 52) ? "warning" : flags.phasedRelease || flags.releasedFull ? "positive" : "neutral";
-  const outcomeSummary: OutcomeSummaryItem[] = [
-    { label: "リリース", status: releaseStatus, tone: releaseTone },
-    { label: "納期", status: getMetricStatusLabel("schedule", metrics.schedule), tone: summaryTone("schedule", metrics.schedule) },
-    { label: "品質", status: getMetricStatusLabel("quality", metrics.quality), tone: summaryTone("quality", metrics.quality) },
-    { label: "顧客信頼", status: getMetricStatusLabel("trust", metrics.trust), tone: summaryTone("trust", metrics.trust) },
-    { label: "チーム状態", status: getMetricStatusLabel("teamHealth", metrics.teamHealth), tone: summaryTone("teamHealth", metrics.teamHealth) },
-  ];
+  const finalMetricKeys = scenario.resultConfig.finalMetricKeys ?? (["schedule", "quality", "trust", "teamHealth", "riskExposure"] as Array<keyof SimulationMetrics>);
+  const finalMetrics = finalMetricKeys.map(key => ({ label: metricLabels[key], value: getMetricDisplayValue(key, metrics[key]), status: getMetricStatusLabel(key, metrics[key]) }));
+  const outcomeSummary = scenario.resultConfig.outcomeSummary.map(item => resolveOutcomeSummaryItem(item, metrics, flags));
   return <FinalResultFramework mode="project" title={scenario.title} score={totalScore} style={style} summary="正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={[{ label: "プロジェクト成果", score: outcomeScore, weight: "50%" }, { label: "判断プロセス", score: decisionScore, weight: "30%" }, { label: "情報収集", score: informationScore, weight: "20%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>最初からプレイ</button></>}>
     <FinalResultSection eyebrow="プロジェクトの着地点" title="守ったもの / 犠牲になったもの"><div className="tradeoff-review"><div><h3>あなたが守ったもの</h3>{protectedItems.length ? protectedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>明確に改善した指標はありませんでした。</p>}</div><div><h3>代わりに犠牲になったもの</h3>{sacrificedItems.length ? sacrificedItems.map(item => <p key={item.key}><strong>{metricLabels[item.key]}</strong><span>{item.delta > 0 ? "+" : ""}{item.delta}</span></p>) : <p>大きく悪化した指標はありませんでした。</p>}</div></div></FinalResultSection>
     <FinalResultSection eyebrow="判断の連鎖" title="判断が後からどう効いたか"><div className="decision-chain">{chain.map((item, index) => <div key={`${item.turn}-${index}`} className={`chain-${item.kind}`}><b>{formatTimingLabel(item.timing)}</b><span>{item.title}</span><strong>{item.effect}</strong>{index < chain.length - 1 ? <i>↓</i> : null}</div>)}</div></FinalResultSection>

@@ -1,5 +1,6 @@
 import type { StatefulScenarioDefinition } from "../statefulScenarioTypes";
-import { scenarioActionCategories, scopeChangeActionSpace } from "./scope-change-action-space";
+import { scopeChangeActionSpace } from "./scope-change-action-space";
+import { statefulActionCategories } from "./stateful-action-categories";
 
 export const scopeChangeSimulation: StatefulScenarioDefinition = {
   id: "scope-change-simulation",
@@ -14,6 +15,18 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
     formalCommitment: false, requestAccepted: false, impactShared: false, decisionOwnerKnown: false,
     alternativePrepared: false, agreementRecorded: false, overtimePromised: false, phasedRelease: false,
   },
+  intro: {
+    emphasizedHeadline: "リリース直前のPMです。",
+    description: "追加要件の背景と影響は、まだ十分に分かっていません。状況を読み、関係者から情報を集め、限られたアクションで判断してください。",
+    briefTitle: "顧客ポータル改善",
+    phase: "リリース直前",
+    team: "PM・開発・品質保証・顧客",
+    issueLabel: "現在の課題",
+    issue: "追加要件",
+    requestLabel: "顧客からの要望",
+    request: "検索条件を追加してほしい",
+    risk: "影響範囲がまだ分かっていない",
+  },
   stakeholders: [
     { id: "sato", name: "佐藤", role: "顧客担当者", priority: "大口顧客の要望を実現したい", avatar: "佐" },
     { id: "takahashi", name: "高橋", role: "顧客決裁者", priority: "発表済みの納期と事業成果を守りたい", avatar: "高" },
@@ -21,7 +34,7 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
     { id: "tanaka", name: "田中", role: "開発リーダー", priority: "実現可能性と品質を守りたい", avatar: "田" },
     { id: "suzuki", name: "鈴木", role: "実装担当", priority: "無理のない負荷で確実に完成させたい", avatar: "鈴" },
   ],
-  actionCategories: scenarioActionCategories,
+  actionCategories: statefulActionCategories,
   information: [
     { id: "request_background", label: "追加要件の背景", detail: "契約更新を検討中の大口顧客から、検索条件の追加を求められている。", source: "佐藤へのヒアリング" },
     { id: "real_priority", label: "顧客の本当の優先順位", detail: "検索条件すべてではなく、特定業種の絞り込みが最重要。", source: "佐藤への具体的な確認" },
@@ -103,4 +116,19 @@ export const scopeChangeSimulation: StatefulScenarioDefinition = {
     { stakeholderId: "takahashi", requiresAll: ["decisionOwnerKnown"], text: "判断に必要な影響が整理されていたので、責任を持って決められました。" },
     { stakeholderId: "takahashi", text: "最終段階で初めて聞く事項がありました。判断者への共有を早めてください。", fallback: true },
   ],
+  resultConfig: {
+    scoreMetricKeys: ["schedule", "budget", "quality", "trust", "teamHealth", "businessValue", "riskExposure", "scopeStability", "stakeholderAlignment"],
+    finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure"],
+    outcomeSummary: [
+      { label: "リリース", rules: [
+        { requiresAll: ["releaseDelayed"], status: "延期", tone: "warning" },
+        { requiresAll: ["phasedRelease"], status: "段階リリース", tone: "positive" },
+        { requiresAll: ["releasedFull"], status: "予定日リリース", tone: "positive" },
+      ], fallbackStatus: "判断完了", fallbackTone: "neutral" },
+      { label: "納期", metric: "schedule" },
+      { label: "品質", metric: "quality" },
+      { label: "顧客信頼", metric: "trust" },
+      { label: "チーム状態", metric: "teamHealth" },
+    ],
+  },
 };
