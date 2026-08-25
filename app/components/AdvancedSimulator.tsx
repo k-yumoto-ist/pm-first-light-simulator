@@ -48,13 +48,13 @@ function changeSymbol(key: keyof ProjectState, delta: number) {
   return favorable ? "↑" : "↓";
 }
 
-export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {
+export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit, onExitToHome, autoResume = false }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: (saved: boolean) => void; onExitToHome: (saved: boolean) => void; autoResume?: boolean }) {
   const theme = mode === "project" ? modeThemes.project : modeThemes.training;
   const statefulScenario = mode === "project" ? getStatefulProjectScenario(scenarioId) : getStatefulTrainingScenario(scenarioId);
   if (statefulScenario) {
-    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} onExit={onExit} /></div>;
+    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} autoResume={autoResume} onExit={onExit} onExitToHome={onExitToHome} /></div>;
   }
-  return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} mode={mode} onExit={onExit} /></div>;
+  return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} mode={mode} onExit={() => onExit(false)} /></div>;
 }
 
 function LegacyAdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ActionConfirmDialog, type ActionConfirmation } from "./ActionConfirmDialog";
 import { ActionDetailModal } from "./ActionDetailModal";
 import { DecisionStep } from "./DecisionStep";
@@ -11,6 +11,7 @@ import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type
 import { SituationStep } from "./SituationStep";
 import { SimulatorIntro } from "./SimulatorIntro";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder } from "./StakeholderChatDrawer";
+import { PlayNavigationMenu } from "./PlayNavigationMenu";
 import { characters } from "../data/characters";
 import { decisionResultCopy, learningByArea, pmActions, type PMActionDefinition } from "../data/actions";
 import { buildFeedback } from "../data/feedback";
@@ -20,11 +21,13 @@ import { conversationEngine } from "../lib/conversationEngine";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, getHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
 import type { ActionLog, ActionResult, CharacterId, Effect, GameFlags, GameState, MetricChange, Metrics, ScoreKey } from "../types/game";
+import { clearPlaySession, readPlaySession, writePlaySession } from "../lib/playSession";
 
 type PendingAction =
   | { kind: "topic"; id: string; confirmation: ActionConfirmation }
   | { kind: "request"; id: string; confirmation: ActionConfirmation }
   | { kind: "release"; id: string; confirmation: ActionConfirmation };
+type LightSnapshot = { game: GameState; flowStep: FlowStep; recentChanges: MetricChange[] };
 
 const scrollPageToTop = () => {
   const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
@@ -59,7 +62,7 @@ function getChanges(before: Metrics, after: Metrics): MetricChange[] {
   return (Object.keys(before) as (keyof Metrics)[]).filter(key => before[key] !== after[key]).map(key => ({ key, before: before[key], after: after[key] }));
 }
 
-export default function PMSimulator() {
+export default function PMSimulator({ onExit = () => {}, autoResume = false }: { onExit?: (saved: boolean) => void; autoResume?: boolean }) {
   const [game, setGame] = useState<GameState>(makeInitialState);
   const [selected, setSelected] = useState<CharacterId | null>(null);
   const [showContacts, setShowContacts] = useState(false);
@@ -73,6 +76,7 @@ export default function PMSimulator() {
   const [recentChanges, setRecentChanges] = useState<MetricChange[]>([]);
   const [showScenarioChoices, setShowScenarioChoices] = useState(false);
   const [confirmAdvance, setConfirmAdvance] = useState(false);
+  const [history, setHistory] = useState<LightSnapshot[]>([]);
   const storedScoresRaw = useSyncExternalStore(subscribeToStoredScore, getStoredScoreSnapshot, getServerScoreSnapshot);
   const storedScores = useMemo<Record<ScoreKey, number> | null>(() => { try { return storedScoresRaw ? JSON.parse(storedScoresRaw) : null; } catch { return null; } }, [storedScoresRaw]);
   const [sessionPreviousScores, setPreviousScores] = useState<Record<ScoreKey, number> | null>(null);
@@ -88,8 +92,26 @@ export default function PMSimulator() {
   const selectedAction = pmActions.find(action => action.id === selectedActionId) || pmActions[0];
   const unknownCount = [game.flags.decisionMakerKnown, game.flags.apiRiskKnown, game.flags.releaseCriteriaKnown].filter(value => !value).length;
   const usedActionIds = pmActions.filter(action => game.logs.some(log => log.turn === game.turn && (action.id === "hearing" ? characters.some(person => log.label.startsWith(`${person.name}さんに`)) : log.label === action.title))).map(action => action.id);
+  const snapshot = (): LightSnapshot => JSON.parse(JSON.stringify({ game, flowStep, recentChanges }));
+  const restoreSnapshot = (saved: LightSnapshot) => {
+    setGame(saved.game); setFlowStep(saved.flowStep); setRecentChanges(saved.recentChanges); setSelected(null); setShowContacts(false); setShowLog(false); setActionResult(null); setExecutingId(null); setActionDetailOpen(false); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
+  };
+  const pushHistory = () => setHistory(current => [...current, snapshot()]);
+  const undo = () => setHistory(current => { const previous = current.at(-1); if (previous) restoreSnapshot(previous); return current.slice(0, -1); });
+  const savePlay = () => writePlaySession({ mode: "light", difficulty: "standard", guided: false, state: { snapshot: snapshot(), history } });
+  useEffect(() => {
+    if (!autoResume) return;
+    const saved = readPlaySession();
+    if (saved?.mode === "light") {
+      const state = saved.state as { snapshot?: LightSnapshot; history?: LightSnapshot[] };
+      if (state.snapshot) { restoreSnapshot(state.snapshot); setHistory(state.history ?? []); }
+    }
+  // Restore only when explicitly launched from the resume card.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoResume]);
 
   const finishAction = (next: GameState, title: string, detail: string, occurred: string, why: string, learning: string, tags: ScoreKey[]) => {
+    pushHistory();
     const changes = getChanges(game.metrics, next.metrics);
     const unlockedMap: { key: keyof GameFlags; copy: string }[] = [
       { key: "decisionMakerKnown", copy: "最終意思決定者：高橋部長（リリース承認者）" },
@@ -262,14 +284,14 @@ export default function PMSimulator() {
     advanceTurn();
   };
   const restart = () => {
-    setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null);
+    clearPlaySession(); setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null); setHistory([]);
     setSelectedActionId("hearing"); setActionDetailOpen(false); setRecentChanges([]); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
     scrollPageToTop();
   };
 
   const startProject = () => { setGame({ ...game, phase: "playing" }); scrollPageToTop(); };
 
-  if (game.phase === "intro") return <SimulatorIntro assignmentLabel="最初の担当案件" modeLabel={modeThemes.light.label} headline="あなたは今日から、" emphasizedHeadline="このプロジェクトのPMです。" description="状況を読み、人に聞き、限られた時間で判断する。結果からPMの考え方を学ぶシミュレーションです。" rules={[{ number: "1", title: "状況を確認", detail: "今起きていることを読む" }, { number: "2", title: "PMとして判断", detail: "3アクションの使い方を選ぶ" }, { number: "3", title: "結果から学ぶ", detail: "因果とPMBOKを振り返る" }]} note="正解を当てるゲームではありません。あなたの判断で、スコープ・スケジュール・品質・チーム・関係者の状態が変化します。" briefTitle={projectBrief.title} briefDescription={projectBrief.purpose} briefItems={[{ label: "リリース予定", value: projectBrief.release }, { label: "チーム", value: projectBrief.team }, { label: "現在のスコープ", value: projectBrief.requirements }, { label: "顧客からの要望", value: projectBrief.customer, className: "quote" }, { label: "現時点のリスク", value: projectBrief.risk, className: "risk", note: "情報は意図的に不完全です" }]} actionLabel="PMとして案件を始める" onStart={startProject} />;
+  if (game.phase === "intro") return <SimulatorIntro assignmentLabel="最初の担当案件" modeLabel={modeThemes.light.label} headline="あなたは今日から、" emphasizedHeadline="このプロジェクトのPMです。" description="状況を読み、人に聞き、限られた時間で判断する。結果からPMの考え方を学ぶシミュレーションです。" rules={[{ number: "1", title: "状況を確認", detail: "今起きていることを読む" }, { number: "2", title: "PMとして判断", detail: "3アクションの使い方を選ぶ" }, { number: "3", title: "結果から学ぶ", detail: "因果とPMBOKを振り返る" }]} note="正解を当てるゲームではありません。あなたの判断で、スコープ・スケジュール・品質・チーム・関係者の状態が変化します。" briefTitle={projectBrief.title} briefDescription={projectBrief.purpose} briefItems={[{ label: "リリース予定", value: projectBrief.release }, { label: "チーム", value: projectBrief.team }, { label: "現在のスコープ", value: projectBrief.requirements }, { label: "顧客からの要望", value: projectBrief.customer, className: "quote" }, { label: "現時点のリスク", value: projectBrief.risk, className: "risk", note: "情報は意図的に不完全です" }]} actionLabel="PMとして案件を始める" onStart={startProject} exitLabel="モード選択へ戻る" onExit={() => onExit(false)} />;
 
   if (game.phase === "result") {
     const avg = Math.round(Object.values(scores).reduce((sum, score) => sum + score, 0) / 4);
@@ -306,7 +328,7 @@ export default function PMSimulator() {
       { label: "顧客信頼", status: getMetricStatusLabel("trust", game.metrics.trust), tone: outcomeToneFor(game.metrics.trust) },
       { label: "チーム状態", status: getMetricStatusLabel("team", game.metrics.team), tone: outcomeToneFor(game.metrics.team) },
     ];
-    return <FinalResultFramework mode="light" title={releaseSuccess ? "プロジェクトは着地しました。" : "課題を残す着地になりました。"} score={avg} previousScore={previousTotal} style={style} summary="4つのPM観点に基づく既存スコアを、プロジェクト運営全体の振り返りとして表示しています。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={(Object.keys(scores) as ScoreKey[]).map(key => ({ label: scoreLabels[key], score: scores[key] }))} actions={<button className="primary large" onClick={restart}>別の判断でリトライ <span>↻</span></button>}>
+    return <FinalResultFramework mode="light" title={releaseSuccess ? "プロジェクトは着地しました。" : "課題を残す着地になりました。"} score={avg} previousScore={previousTotal} style={style} summary="4つのPM観点に基づく既存スコアを、プロジェクト運営全体の振り返りとして表示しています。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={(Object.keys(scores) as ScoreKey[]).map(key => ({ label: scoreLabels[key], score: scores[key] }))} actions={<><button className="v2-secondary" onClick={() => onExit(false)}>モードを変更する</button><button className="primary large" onClick={restart}>最初からプレイ <span>↻</span></button></>}>
       <FinalResultSection eyebrow="プロジェクトの着地点" title="今回の判断で、何を動かしたか"><div className="final-review-grid"><article><span>よく選んだ行動</span><strong>{frequent}</strong><p>今回の判断傾向を表しています。</p></article><article><span>対応できた問題</span><ul>{addressed.length ? addressed.map(item => <li key={item}>{item}</li>) : <li>明確に対応できた問題はありませんでした</li>}</ul></article><article><span>次に確認したい観点</span><ul>{missed.length ? missed.map(item => <li key={item}>{item}</li>) : <li>主要な問題へ対応できました</li>}</ul></article><article><span>影響が大きかった判断</span><strong>{biggest?.label || "—"}</strong><p>{biggest?.why || "記録なし"}</p></article></div></FinalResultSection>
       <FinalResultSection eyebrow="判断の連鎖" title="主要な判断と結果"><ProjectLog logs={game.logs} initialLimit={4} /></FinalResultSection>
       <FinalResultSection eyebrow="PMとしての振り返り" title="今回見られた行動"><div className="feedback-list">{feedback.map(item => <article key={item.area} className={item.positive ? "positive" : "lesson"}><div className="feedback-area">{scoreLabels[item.area]}</div><div><h3>{item.title}</h3><p>{item.story}</p></div></article>)}</div></FinalResultSection>
@@ -326,7 +348,7 @@ export default function PMSimulator() {
     <header className="simulation-header">
       <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes.light.label}</small></div>
       <div className="time-context"><span>{turn.day}日目</span><strong>{formatTimingLabel(turn.week)}</strong><small>リリースまで {turn.remaining}日</small></div>
-      <button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{game.logs.length}</b></button>
+      <div className="header-utilities"><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{game.logs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); else clearPlaySession(); onExit(save); }} /></div>
     </header>
     <FlowSteps current={flowStep} />
     {flowStep === "situation" && <SituationStep turnNumber={game.turn} theme={turn.theme} title={turn.title} notice={game.turnNotice} consider={turn.consider} flags={game.flags} onDecide={() => { setFlowStep("decision"); scrollPageToTop(); }} />}

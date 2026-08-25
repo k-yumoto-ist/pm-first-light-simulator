@@ -9,6 +9,7 @@ import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
 import { trainingScenarioCards } from "@/src/data/training/training-scenarios";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { difficultyLabels } from "../data/uiLabels";
+import { clearPlaySession, formatSavedAt, readPlaySession, type SavedPlaySession } from "../lib/playSession";
 
 type View = "home" | "light" | "training" | "scenario" | "advanced";
 
@@ -23,14 +24,34 @@ export default function SimulatorHub() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>();
   const [difficulty, setDifficulty] = useState<Difficulty>("standard");
   const [entryMode, setEntryMode] = useState<ScenarioMode>("training");
+  const [savedPlay, setSavedPlay] = useState<SavedPlaySession | null>(null);
+  const [resumeRequested, setResumeRequested] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [view]);
+  useEffect(() => { setSavedPlay(readPlaySession()); }, [view]);
 
-  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator /></div>;
+  const rememberExit = (saved: boolean, destination: View = "home") => {
+    if (saved) setSavedPlay(readPlaySession());
+    else setSavedPlay(readPlaySession());
+    setResumeRequested(false);
+    setView(destination);
+  };
+
+  const resumePlay = () => {
+    if (!savedPlay) return;
+    setResumeRequested(true);
+    if (savedPlay.mode === "light") { setView("light"); return; }
+    setEntryMode(savedPlay.mode);
+    setSelectedScenarioId(savedPlay.scenarioId);
+    setDifficulty(savedPlay.difficulty ?? "standard");
+    setView("advanced");
+  };
+
+  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator autoResume={resumeRequested} onExit={(saved) => rememberExit(saved)} /></div>;
   if (view === "advanced" && selectedScenarioId) {
-    return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} onExit={() => setView("home")} />;
+    return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} autoResume={resumeRequested} onExit={(saved) => rememberExit(saved, entryMode === "training" ? "training" : "scenario")} onExitToHome={(saved) => rememberExit(saved)} />;
   }
 
   if (view === "training" || view === "scenario") {
@@ -83,7 +104,7 @@ export default function SimulatorHub() {
           </div>
           <div className="v2-setup-cta">
             <p>{selectedScenarioId ? "準備ができました。状況を読み、最初の判断を始めましょう。" : "体験するテーマを選んでください。"}</p>
-            <button className="primary large" disabled={!selectedScenarioId} onClick={() => setView("advanced")}>シミュレーションを開始 <span>→</span></button>
+            <button className="primary large" disabled={!selectedScenarioId} onClick={() => { setResumeRequested(false); setView("advanced"); }}>シミュレーションを開始 <span>→</span></button>
           </div>
         </section>
       </main>
@@ -99,6 +120,10 @@ export default function SimulatorHub() {
         <h1>PMとして考えることを、<br /><em>プロジェクトの結果</em>から学ぶ。</h1>
         <p>知識を先に覚えるのではなく、状況を読み、判断し、起きたことを振り返るシミュレーションです。</p>
       </section>
+      {savedPlay ? <section className="v2-resume-card" aria-label="保存したプレイ">
+        <div><p className="v2-kicker">続きからプレイ</p><strong>{savedPlay.mode === "light" ? modeThemes.light.label : modeThemes[savedPlay.mode].label}</strong><span>{savedPlay.scenarioId ? `${trainingScenarioCards.find(item => item.id === savedPlay.scenarioId)?.label ?? scenarios.find(item => item.id === savedPlay.scenarioId)?.title ?? savedPlay.scenarioId} / ` : ""}難易度：{difficultyLabels[savedPlay.difficulty ?? "standard"]}</span><small>{formatSavedAt(savedPlay.savedAt)} 保存</small></div>
+        <div><button className="primary" onClick={resumePlay}>続きからプレイ</button><button className="v2-text-button" onClick={() => { clearPlaySession(); setSavedPlay(null); }}>保存データを削除</button></div>
+      </section> : null}
       <section className="v2-mode-grid" aria-label="プレイモード">
         <button className={`v2-mode-card light ${modeThemes.light.className}`} style={modeThemeStyle("light")} onClick={() => setView("light")}>
           <span className="v2-mode-number">01</span><p>{modeThemes.light.label}</p><h2>初めての<br />プロジェクトマネジメント</h2><small>既存の4ターンを通じて、PMの基本を体験</small><b>プレイする →</b>

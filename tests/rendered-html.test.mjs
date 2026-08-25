@@ -195,7 +195,9 @@ test("renders the stateful scenario through the canonical LIGHT flow", async () 
   assert.match(chat, /onSelectQuestion/);
   assert.match(chat, /<AccessibleDialog/);
   assert.match(intro, /プロジェクト概要/);
-  assert.match(runner, /exitLabel="モード選択へ戻る" onExit=\{onExit\}/);
+  assert.match(runner, /exitLabel="テーマ選択へ戻る" onExit=\{\(\) => onExit\(false\)\}/);
+  assert.match(runner, /<PlayNavigationMenu/);
+  assert.match(runner, /type StatefulSnapshot/);
 });
 
 test("provides seven three-turn Stateful trainings on the shared runner", async () => {
