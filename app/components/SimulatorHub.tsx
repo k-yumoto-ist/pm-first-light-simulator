@@ -20,6 +20,16 @@ const difficulties: Array<{ id: Difficulty; label: string; description: string }
   { id: "challenge", label: difficultyLabels.challenge, description: "限られた情報だけで、経験者向けの判断に挑みます。" },
 ];
 
+function getSavedScenarioLabel(savedPlay: SavedPlaySession) {
+  if (!savedPlay.scenarioId) return undefined;
+  if (savedPlay.mode === "training") return trainingScenarioCards.find(item => item.id === savedPlay.scenarioId)?.label;
+  if (savedPlay.mode === "project") {
+    return scenarios.find(item => item.id === savedPlay.scenarioId)?.title
+      ?? getStatefulProjectScenario(savedPlay.scenarioId)?.title;
+  }
+  return undefined;
+}
+
 export default function SimulatorHub() {
   const [view, setView] = useState<View>("home");
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>();
@@ -130,7 +140,7 @@ export default function SimulatorHub() {
         <p>知識を先に覚えるのではなく、状況を読み、判断し、起きたことを振り返るシミュレーションです。</p>
       </section>
       {savedPlay ? <section className="v2-resume-card" aria-label="保存したプレイ">
-        <div><p className="v2-kicker">続きからプレイ</p><strong>{savedPlay.mode === "light" ? modeThemes.light.label : modeThemes[savedPlay.mode].label}</strong><span>{savedPlay.scenarioId ? `${trainingScenarioCards.find(item => item.id === savedPlay.scenarioId)?.label ?? scenarios.find(item => item.id === savedPlay.scenarioId)?.title ?? savedPlay.scenarioId} / ` : ""}難易度：{difficultyLabels[savedPlay.difficulty ?? "standard"]}</span><small>{formatSavedAt(savedPlay.savedAt)} 保存</small></div>
+        <div><p className="v2-kicker">続きからプレイ</p><strong>{savedPlay.mode === "light" ? modeThemes.light.label : modeThemes[savedPlay.mode].label}</strong><span>{getSavedScenarioLabel(savedPlay) ? `${getSavedScenarioLabel(savedPlay)} / ` : ""}難易度：{difficultyLabels[savedPlay.difficulty ?? "standard"]}</span><small>{formatSavedAt(savedPlay.savedAt)} 保存</small></div>
         <div><button className="primary" onClick={resumePlay}>続きからプレイ</button><button className="v2-text-button" onClick={() => { clearPlaySession(); setSavedPlay(null); }}>保存データを削除</button></div>
       </section> : null}
       <section className="v2-mode-grid" aria-label="プレイモード">

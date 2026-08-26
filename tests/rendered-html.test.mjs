@@ -289,11 +289,12 @@ test("keeps the light-mode decision loop intact", async () => {
 });
 
 test("restores saved result screens without rendering a blank simulator", async () => {
-  const [session, light, stateful, hub] = await Promise.all([
+  const [session, light, stateful, hub, projectRegistry] = await Promise.all([
     readFile(new URL("app/lib/playSession.ts", root), "utf8"),
     readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
     readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
     readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"),
+    readFile(new URL("src/data/scenarios/stateful-project-scenarios.ts", root), "utf8"),
   ]);
   assert.match(session, /PLAY_SAVE_VERSION = 2/);
   assert.match(session, /isSavedPlaySession/);
@@ -304,6 +305,8 @@ test("restores saved result screens without rendering a blank simulator", async 
   assert.match(stateful, /normalizeStatefulSnapshot\(savedState\?\.snapshot, scenario\.turns\.length\)/);
   assert.match(hub, /getStatefulTrainingScenario\(savedPlay\.scenarioId\)/);
   assert.match(hub, /getStatefulProjectScenario\(savedPlay\.scenarioId\)/);
+  assert.match(hub, /getSavedScenarioLabel\(savedPlay\)/);
+  assert.match(projectRegistry, /Object\.values\(statefulProjectScenarios\)\.find\(\(scenario\) => scenario\.id === id\)/);
 });
 
 test("keeps v2 scenarios data-driven and separates learning from behavior review", async () => {

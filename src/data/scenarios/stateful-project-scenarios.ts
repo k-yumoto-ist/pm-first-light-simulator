@@ -12,5 +12,6 @@ export const statefulProjectScenarios: Record<string, StatefulScenarioDefinition
 };
 
 export function getStatefulProjectScenario(id: string) {
-  return statefulProjectScenarios[id];
+  return statefulProjectScenarios[id]
+    ?? Object.values(statefulProjectScenarios).find((scenario) => scenario.id === id);
 }
