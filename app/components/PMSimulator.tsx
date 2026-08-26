@@ -262,6 +262,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     if (game.turn === 4) {
       if (!game.releaseDecision) return;
       try { localStorage.setItem("pm-simulator-last-score", JSON.stringify(calculateScores(game))); } catch {}
+      clearPlaySession();
       setGame({ ...game, phase: "result" }); setFlowStep("result"); return;
     }
     const nextTurn = game.turn + 1;

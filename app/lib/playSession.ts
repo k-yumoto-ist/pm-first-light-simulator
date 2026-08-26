@@ -31,7 +31,7 @@ function isSavedPlaySession(value: unknown): value is SavedPlaySession {
   return typeof value.guided === "boolean" && isRecord(value.state);
 }
 
-export function readPlaySession(): SavedPlaySession | null {
+export function loadGame(): SavedPlaySession | null {
   try {
     const raw = window.localStorage.getItem(PLAY_SAVE_KEY);
     if (!raw) return null;
@@ -47,15 +47,29 @@ export function readPlaySession(): SavedPlaySession | null {
   }
 }
 
-export function writePlaySession(session: Omit<SavedPlaySession, "saveVersion" | "savedAt">) {
+export function saveGame(session: Omit<SavedPlaySession, "saveVersion" | "savedAt">): boolean {
   try {
     window.localStorage.setItem(PLAY_SAVE_KEY, JSON.stringify({ ...session, saveVersion: PLAY_SAVE_VERSION, savedAt: new Date().toISOString() }));
-  } catch { /* Storage is optional: the simulator remains playable without it. */ }
+    return true;
+  } catch {
+    // Storage is optional: the simulator remains playable when it is unavailable.
+    return false;
+  }
 }
 
-export function clearPlaySession() {
+export function deleteSave() {
   try { window.localStorage.removeItem(PLAY_SAVE_KEY); } catch {}
 }
+
+export function hasSaveData() {
+  return loadGame() !== null;
+}
+
+// Backward-compatible aliases keep save handling centralized while existing
+// integrations migrate to the game-oriented API names above.
+export const readPlaySession = loadGame;
+export const writePlaySession = saveGame;
+export const clearPlaySession = deleteSave;
 
 export function formatSavedAt(iso: string) {
   try { return new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)); } catch { return iso; }

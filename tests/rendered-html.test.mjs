@@ -309,6 +309,30 @@ test("restores saved result screens without rendering a blank simulator", async 
   assert.match(projectRegistry, /Object\.values\(statefulProjectScenarios\)\.find\(\(scenario\) => scenario\.id === id\)/);
 });
 
+test("supports one-slot local save, safe resume, confirmed deletion, and completion cleanup", async () => {
+  const [session, menu, hub, light, stateful] = await Promise.all([
+    readFile(new URL("app/lib/playSession.ts", root), "utf8"),
+    readFile(new URL("app/components/PlayNavigationMenu.tsx", root), "utf8"),
+    readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"),
+    readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+  ]);
+  assert.match(session, /export function saveGame/);
+  assert.match(session, /export function loadGame/);
+  assert.match(session, /export function deleteSave/);
+  assert.match(session, /export function hasSaveData/);
+  assert.match(session, /window\.localStorage\.setItem\(PLAY_SAVE_KEY/);
+  assert.match(session, /JSON\.parse/);
+  assert.match(session, /window\.localStorage\.removeItem\(PLAY_SAVE_KEY\)/);
+  assert.match(menu, /プレイ状況を保存しました/);
+  assert.match(menu, /role="status" aria-live="polite"/);
+  assert.match(hub, /続きからプレイ/);
+  assert.match(hub, /保存したプレイデータを削除しますか/);
+  assert.match(hub, /削除すると元に戻せません/);
+  assert.match(light, /clearPlaySession\(\);\s*setGame\(\{ \.\.\.game, phase: "result" \}\)/);
+  assert.match(stateful, /clearPlaySession\(\);\s*setResultDialog\(undefined\);\s*setPhase\("final"\)/);
+});
+
 test("keeps v2 scenarios data-driven and separates learning from behavior review", async () => {
   const [hub, runner, finalResult, themes, types, scenarioIndex, scope, schedule, resources, stakeholders] = await Promise.all([
     readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"), readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"), readFile(new URL("app/components/FinalResultFramework.tsx", root), "utf8"), readFile(new URL("app/data/modeThemes.ts", root), "utf8"), readFile(new URL("src/data/types.ts", root), "utf8"), readFile(new URL("src/data/scenarios/index.ts", root), "utf8"), readFile(new URL("src/data/scenarios/scope-change.ts", root), "utf8"), readFile(new URL("src/data/scenarios/schedule-crisis.ts", root), "utf8"), readFile(new URL("src/data/scenarios/keyperson-exit.ts", root), "utf8"), readFile(new URL("src/data/scenarios/stakeholder-conflict.ts", root), "utf8"),

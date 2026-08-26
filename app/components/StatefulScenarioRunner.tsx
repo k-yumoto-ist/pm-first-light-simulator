@@ -217,7 +217,12 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   };
 
   const advanceTurn = () => {
-    if (turnIndex >= scenario.turns.length - 1) { setResultDialog(undefined); setPhase("final"); return; }
+    if (turnIndex >= scenario.turns.length - 1) {
+      clearPlaySession();
+      setResultDialog(undefined);
+      setPhase("final");
+      return;
+    }
     const nextIndex = turnIndex + 1; const nextTurn = scenario.turns[nextIndex]; let nextMetrics = metrics;
     const consequences: ChainItem[] = []; const consequenceLogs: ActionLog[] = [];
     for (const consequence of nextTurn.delayedEffects ?? []) {
