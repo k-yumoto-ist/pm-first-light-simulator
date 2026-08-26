@@ -1,4 +1,4 @@
-type D1Database = any;
+type D1Database = unknown;
 
 interface Fetcher {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;

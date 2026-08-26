@@ -6,7 +6,8 @@ import AdvancedSimulator from "./AdvancedSimulator";
 import { scenarios } from "@/src/data/scenarios";
 import type { Difficulty } from "@/src/data/types";
 import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
-import { trainingScenarioCards } from "@/src/data/training/training-scenarios";
+import { getStatefulTrainingScenario, trainingScenarioCards } from "@/src/data/training/training-scenarios";
+import { getStatefulProjectScenario } from "@/src/data/scenarios/stateful-project-scenarios";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { difficultyLabels } from "../data/uiLabels";
 import { clearPlaySession, formatSavedAt, readPlaySession, type SavedPlaySession } from "../lib/playSession";
@@ -30,8 +31,10 @@ export default function SimulatorHub() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [view]);
-  useEffect(() => { setSavedPlay(readPlaySession()); }, [view]);
-
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSavedPlay(readPlaySession()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const rememberExit = (saved: boolean, destination: View = "home") => {
     if (saved) setSavedPlay(readPlaySession());
     else setSavedPlay(readPlaySession());
@@ -41,17 +44,23 @@ export default function SimulatorHub() {
 
   const resumePlay = () => {
     if (!savedPlay) return;
+    if (savedPlay.mode === "light") { setResumeRequested(true); setView("light"); return; }
+    const scenarioExists = savedPlay.scenarioId && (savedPlay.mode === "training" ? getStatefulTrainingScenario(savedPlay.scenarioId) : getStatefulProjectScenario(savedPlay.scenarioId));
+    if (!scenarioExists) {
+      clearPlaySession();
+      setSavedPlay(null);
+      return;
+    }
     setResumeRequested(true);
-    if (savedPlay.mode === "light") { setView("light"); return; }
     setEntryMode(savedPlay.mode);
     setSelectedScenarioId(savedPlay.scenarioId);
     setDifficulty(savedPlay.difficulty ?? "standard");
     setView("advanced");
   };
 
-  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator autoResume={resumeRequested} onExit={(saved) => rememberExit(saved)} /></div>;
+  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator resumeSession={resumeRequested ? savedPlay ?? undefined : undefined} onExit={(saved) => rememberExit(saved)} /></div>;
   if (view === "advanced" && selectedScenarioId) {
-    return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} autoResume={resumeRequested} onExit={(saved) => rememberExit(saved, entryMode === "training" ? "training" : "scenario")} onExitToHome={(saved) => rememberExit(saved)} />;
+    return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} resumeSession={resumeRequested ? savedPlay ?? undefined : undefined} onExit={(saved) => rememberExit(saved, entryMode === "training" ? "training" : "scenario")} onExitToHome={(saved) => rememberExit(saved)} />;
   }
 
   if (view === "training" || view === "scenario") {

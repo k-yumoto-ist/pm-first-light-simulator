@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { ActionConfirmDialog, type ActionConfirmation } from "./ActionConfirmDialog";
 import { ActionDetailModal } from "./ActionDetailModal";
 import { DecisionStep } from "./DecisionStep";
@@ -21,13 +21,29 @@ import { conversationEngine } from "../lib/conversationEngine";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, getHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
 import type { ActionLog, ActionResult, CharacterId, Effect, GameFlags, GameState, MetricChange, Metrics, ScoreKey } from "../types/game";
-import { clearPlaySession, readPlaySession, writePlaySession } from "../lib/playSession";
+import { clearPlaySession, writePlaySession, type SavedPlaySession } from "../lib/playSession";
 
 type PendingAction =
   | { kind: "topic"; id: string; confirmation: ActionConfirmation }
   | { kind: "request"; id: string; confirmation: ActionConfirmation }
   | { kind: "release"; id: string; confirmation: ActionConfirmation };
-type LightSnapshot = { game: GameState; flowStep: FlowStep; recentChanges: MetricChange[] };
+type LightSnapshot = { game: GameState; flowStep: FlowStep; recentChanges: MetricChange[]; actionResult: ActionResult | null };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeLightSnapshot(value: unknown): LightSnapshot | null {
+  if (!isRecord(value) || !isRecord(value.game)) return null;
+  const game = value.game as unknown as GameState;
+  if (!(["intro", "playing", "result"] as const).includes(game.phase) || !Number.isInteger(game.turn) || game.turn < 1 || game.turn > turns.length) return null;
+  if (!Number.isInteger(game.actionsLeft) || game.actionsLeft < 0 || !isRecord(game.metrics) || !isRecord(game.flags) || !isRecord(game.chats) || !Array.isArray(game.logs) || !Array.isArray(game.asked)) return null;
+  const requestedFlowStep = value.flowStep;
+  if (requestedFlowStep !== "situation" && requestedFlowStep !== "decision" && requestedFlowStep !== "result") return null;
+  const actionResult = isRecord(value.actionResult) ? value.actionResult as unknown as ActionResult : null;
+  const flowStep = game.phase === "playing" && requestedFlowStep === "result" && !actionResult ? "decision" : requestedFlowStep;
+  return { game, flowStep, recentChanges: Array.isArray(value.recentChanges) ? value.recentChanges as MetricChange[] : [], actionResult };
+}
 
 const scrollPageToTop = () => {
   const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
@@ -62,21 +78,24 @@ function getChanges(before: Metrics, after: Metrics): MetricChange[] {
   return (Object.keys(before) as (keyof Metrics)[]).filter(key => before[key] !== after[key]).map(key => ({ key, before: before[key], after: after[key] }));
 }
 
-export default function PMSimulator({ onExit = () => {}, autoResume = false }: { onExit?: (saved: boolean) => void; autoResume?: boolean }) {
-  const [game, setGame] = useState<GameState>(makeInitialState);
+export default function PMSimulator({ onExit = () => {}, resumeSession }: { onExit?: (saved: boolean) => void; resumeSession?: SavedPlaySession }) {
+  const savedState = resumeSession?.mode === "light" && isRecord(resumeSession.state) ? resumeSession.state : undefined;
+  const resumedSnapshot = normalizeLightSnapshot(savedState?.snapshot);
+  const resumedHistory = Array.isArray(savedState?.history) ? savedState.history.map(normalizeLightSnapshot).filter((item): item is LightSnapshot => Boolean(item)) : [];
+  const [game, setGame] = useState<GameState>(() => resumedSnapshot?.game ?? makeInitialState());
   const [selected, setSelected] = useState<CharacterId | null>(null);
   const [showContacts, setShowContacts] = useState(false);
   const [showLog, setShowLog] = useState(false);
-  const [flowStep, setFlowStep] = useState<FlowStep>("situation");
-  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
+  const [flowStep, setFlowStep] = useState<FlowStep>(() => resumedSnapshot?.flowStep ?? "situation");
+  const [actionResult, setActionResult] = useState<ActionResult | null>(() => resumedSnapshot?.actionResult ?? null);
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [selectedActionId, setSelectedActionId] = useState<PMActionDefinition["id"]>("hearing");
   const [actionDetailOpen, setActionDetailOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [recentChanges, setRecentChanges] = useState<MetricChange[]>([]);
+  const [recentChanges, setRecentChanges] = useState<MetricChange[]>(() => resumedSnapshot?.recentChanges ?? []);
   const [showScenarioChoices, setShowScenarioChoices] = useState(false);
   const [confirmAdvance, setConfirmAdvance] = useState(false);
-  const [history, setHistory] = useState<LightSnapshot[]>([]);
+  const [history, setHistory] = useState<LightSnapshot[]>(() => resumedHistory);
   const storedScoresRaw = useSyncExternalStore(subscribeToStoredScore, getStoredScoreSnapshot, getServerScoreSnapshot);
   const storedScores = useMemo<Record<ScoreKey, number> | null>(() => { try { return storedScoresRaw ? JSON.parse(storedScoresRaw) : null; } catch { return null; } }, [storedScoresRaw]);
   const [sessionPreviousScores, setPreviousScores] = useState<Record<ScoreKey, number> | null>(null);
@@ -92,24 +111,13 @@ export default function PMSimulator({ onExit = () => {}, autoResume = false }: {
   const selectedAction = pmActions.find(action => action.id === selectedActionId) || pmActions[0];
   const unknownCount = [game.flags.decisionMakerKnown, game.flags.apiRiskKnown, game.flags.releaseCriteriaKnown].filter(value => !value).length;
   const usedActionIds = pmActions.filter(action => game.logs.some(log => log.turn === game.turn && (action.id === "hearing" ? characters.some(person => log.label.startsWith(`${person.name}さんに`)) : log.label === action.title))).map(action => action.id);
-  const snapshot = (): LightSnapshot => JSON.parse(JSON.stringify({ game, flowStep, recentChanges }));
+  const snapshot = (): LightSnapshot => JSON.parse(JSON.stringify({ game, flowStep, recentChanges, actionResult }));
   const restoreSnapshot = (saved: LightSnapshot) => {
-    setGame(saved.game); setFlowStep(saved.flowStep); setRecentChanges(saved.recentChanges); setSelected(null); setShowContacts(false); setShowLog(false); setActionResult(null); setExecutingId(null); setActionDetailOpen(false); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
+    setGame(saved.game); setFlowStep(saved.flowStep); setRecentChanges(saved.recentChanges); setSelected(null); setShowContacts(false); setShowLog(false); setActionResult(saved.actionResult); setExecutingId(null); setActionDetailOpen(false); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
   };
   const pushHistory = () => setHistory(current => [...current, snapshot()]);
   const undo = () => setHistory(current => { const previous = current.at(-1); if (previous) restoreSnapshot(previous); return current.slice(0, -1); });
   const savePlay = () => writePlaySession({ mode: "light", difficulty: "standard", guided: false, state: { snapshot: snapshot(), history } });
-  useEffect(() => {
-    if (!autoResume) return;
-    const saved = readPlaySession();
-    if (saved?.mode === "light") {
-      const state = saved.state as { snapshot?: LightSnapshot; history?: LightSnapshot[] };
-      if (state.snapshot) { restoreSnapshot(state.snapshot); setHistory(state.history ?? []); }
-    }
-  // Restore only when explicitly launched from the resume card.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoResume]);
-
   const finishAction = (next: GameState, title: string, detail: string, occurred: string, why: string, learning: string, tags: ScoreKey[]) => {
     pushHistory();
     const changes = getChanges(game.metrics, next.metrics);

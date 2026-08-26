@@ -24,13 +24,42 @@ import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, formatTurnLabel, getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
 import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, resolveScenarioActionOutcome } from "@/src/data/statefulScenarioLogic.mjs";
 import { PlayNavigationMenu } from "./PlayNavigationMenu";
-import { clearPlaySession, readPlaySession, writePlaySession } from "../lib/playSession";
+import { clearPlaySession, writePlaySession, type SavedPlaySession } from "../lib/playSession";
 
 type PlayPhase = "briefing" | "situation" | "cockpit" | "result" | "final";
 type ChainItem = { turn: number; timing: string; kind: "information" | "decision" | "consequence"; title: string; effect: string };
 type DecisionRecord = { turn: number; timing: string; title: string; whatHappened: string; why: string; pmPoint: string; before: SimulationMetrics; after: SimulationMetrics; evidence: BehaviorStandardEvidence[] };
 type ResultDialogState = { result: ActionResult; advancesTurn: boolean };
 type StatefulSnapshot = { phase: PlayPhase; turnIndex: number; investigationsLeft: number; metrics: SimulationMetrics; flags: Record<string, boolean | number | string>; informationIds: string[]; usedActionKeys: string[]; actionUsageCounts: Partial<Record<ScenarioActionCategoryId, number>>; chatHistories: Record<string, StakeholderChatMessage[]>; decisions: DecisionRecord[]; chain: ChainItem[]; projectLogs: ActionLog[]; resultDialog?: ResultDialogState };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeStatefulSnapshot(value: unknown, turnCount: number): StatefulSnapshot | null {
+  if (!isRecord(value)) return null;
+  const allowedPhases: PlayPhase[] = ["briefing", "situation", "cockpit", "result", "final"];
+  if (!allowedPhases.includes(value.phase as PlayPhase) || !Number.isInteger(value.turnIndex) || (value.turnIndex as number) < 0 || (value.turnIndex as number) >= turnCount) return null;
+  if (!Number.isInteger(value.investigationsLeft) || (value.investigationsLeft as number) < 0 || !isRecord(value.metrics) || !isRecord(value.flags)) return null;
+  if (!Array.isArray(value.informationIds) || !Array.isArray(value.usedActionKeys) || !isRecord(value.actionUsageCounts) || !isRecord(value.chatHistories) || !Array.isArray(value.decisions) || !Array.isArray(value.chain) || !Array.isArray(value.projectLogs)) return null;
+  const resultDialog = isRecord(value.resultDialog) && isRecord(value.resultDialog.result) ? value.resultDialog as unknown as ResultDialogState : undefined;
+  const phase = value.phase === "result" && !resultDialog ? "cockpit" : value.phase as PlayPhase;
+  return {
+    phase,
+    turnIndex: value.turnIndex as number,
+    investigationsLeft: value.investigationsLeft as number,
+    metrics: value.metrics as unknown as SimulationMetrics,
+    flags: value.flags as Record<string, boolean | number | string>,
+    informationIds: value.informationIds as string[],
+    usedActionKeys: value.usedActionKeys as string[],
+    actionUsageCounts: value.actionUsageCounts as Partial<Record<ScenarioActionCategoryId, number>>,
+    chatHistories: value.chatHistories as Record<string, StakeholderChatMessage[]>,
+    decisions: value.decisions as DecisionRecord[],
+    chain: value.chain as ChainItem[],
+    projectLogs: value.projectLogs as ActionLog[],
+    resultDialog,
+  };
+}
 
 const categoryTags: Record<ScenarioActionCategoryId, ScoreKey[]> = {
   hearing: ["stakeholder"], schedule: ["schedule"], risk: ["risk"], scope: ["scope"], team: ["schedule"], report: ["stakeholder"],
@@ -69,32 +98,35 @@ function confirmationFor(action: ScenarioAction): ActionConfirmation {
   return { title: `${action.title}を実行しますか？`, description: action.question ?? action.description, aims: ["判断材料を増やす", "確認先と質問内容を意識して情報を得る"], impacts: base.impactHints.map(item => ({ label: item.label, direction: directionMarks[item.direction] })) };
 }
 
-export default function StatefulScenarioRunner({ scenario, difficulty, onExit, onExitToHome, autoResume = false }: { scenario: StatefulScenarioDefinition; difficulty: Difficulty; onExit: (saved: boolean) => void; onExitToHome: (saved: boolean) => void; autoResume?: boolean }) {
-  const [phase, setPhase] = useState<PlayPhase>("briefing");
-  const [turnIndex, setTurnIndex] = useState(0);
+export default function StatefulScenarioRunner({ scenario, difficulty, onExit, onExitToHome, resumeSession }: { scenario: StatefulScenarioDefinition; difficulty: Difficulty; onExit: (saved: boolean) => void; onExitToHome: (saved: boolean) => void; resumeSession?: SavedPlaySession }) {
+  const savedState = resumeSession?.mode === scenario.mode && resumeSession.scenarioId === scenario.id && resumeSession.difficulty === difficulty && isRecord(resumeSession.state) ? resumeSession.state : undefined;
+  const resumedSnapshot = normalizeStatefulSnapshot(savedState?.snapshot, scenario.turns.length);
+  const resumedHistory = Array.isArray(savedState?.history) ? savedState.history.map(item => normalizeStatefulSnapshot(item, scenario.turns.length)).filter((item): item is StatefulSnapshot => Boolean(item)) : [];
+  const [phase, setPhase] = useState<PlayPhase>(() => resumedSnapshot?.phase ?? "briefing");
+  const [turnIndex, setTurnIndex] = useState(() => resumedSnapshot?.turnIndex ?? 0);
   const investigationBudget = scenario.investigationBudget?.[difficulty] ?? (difficulty === "guided" ? 3 : 2);
-  const [investigationsLeft, setInvestigationsLeft] = useState(investigationBudget);
-  const [metrics, setMetrics] = useState(scenario.initialMetrics);
-  const [flags, setFlags] = useState(scenario.initialFlags);
-  const [informationIds, setInformationIds] = useState<string[]>([]);
-  const [usedActionKeys, setUsedActionKeys] = useState<string[]>([]);
-  const [actionUsageCounts, setActionUsageCounts] = useState<Partial<Record<ScenarioActionCategoryId, number>>>({});
+  const [investigationsLeft, setInvestigationsLeft] = useState(() => resumedSnapshot?.investigationsLeft ?? investigationBudget);
+  const [metrics, setMetrics] = useState(() => resumedSnapshot?.metrics ?? scenario.initialMetrics);
+  const [flags, setFlags] = useState(() => resumedSnapshot?.flags ?? scenario.initialFlags);
+  const [informationIds, setInformationIds] = useState<string[]>(() => resumedSnapshot?.informationIds ?? []);
+  const [usedActionKeys, setUsedActionKeys] = useState<string[]>(() => resumedSnapshot?.usedActionKeys ?? []);
+  const [actionUsageCounts, setActionUsageCounts] = useState<Partial<Record<ScenarioActionCategoryId, number>>>(() => resumedSnapshot?.actionUsageCounts ?? {});
   const [pickerCategory, setPickerCategory] = useState<ScenarioActionCategoryId>();
   const [selectedCategoryAction, setSelectedCategoryAction] = useState<PMActionDefinition>();
   const [actionDetailOpen, setActionDetailOpen] = useState(false);
   const [confirmingAction, setConfirmingAction] = useState<ScenarioAction>();
   const [showContacts, setShowContacts] = useState(false);
   const [selectedStakeholderId, setSelectedStakeholderId] = useState<string>();
-  const [chatHistories, setChatHistories] = useState<Record<string, StakeholderChatMessage[]>>({});
+  const [chatHistories, setChatHistories] = useState<Record<string, StakeholderChatMessage[]>>(() => resumedSnapshot?.chatHistories ?? {});
   const [selectedDecision, setSelectedDecision] = useState<ScenarioDecision>();
-  const [resultDialog, setResultDialog] = useState<ResultDialogState>();
-  const [decisions, setDecisions] = useState<DecisionRecord[]>([]);
-  const [chain, setChain] = useState<ChainItem[]>([]);
-  const [projectLogs, setProjectLogs] = useState<ActionLog[]>([]);
+  const [resultDialog, setResultDialog] = useState<ResultDialogState | undefined>(() => resumedSnapshot?.resultDialog);
+  const [decisions, setDecisions] = useState<DecisionRecord[]>(() => resumedSnapshot?.decisions ?? []);
+  const [chain, setChain] = useState<ChainItem[]>(() => resumedSnapshot?.chain ?? []);
+  const [projectLogs, setProjectLogs] = useState<ActionLog[]>(() => resumedSnapshot?.projectLogs ?? []);
   const [showLog, setShowLog] = useState(false);
   const [showInformation, setShowInformation] = useState(false);
   const [showProjectDetails, setShowProjectDetails] = useState(false);
-  const [history, setHistory] = useState<StatefulSnapshot[]>([]);
+  const [history, setHistory] = useState<StatefulSnapshot[]>(() => resumedHistory);
 
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "auto" }); }, [phase, turnIndex]);
 
@@ -109,17 +141,6 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
     clearPlaySession(); setPhase("briefing"); setTurnIndex(0); setInvestigationsLeft(investigationBudget); setMetrics(scenario.initialMetrics); setFlags(scenario.initialFlags); setInformationIds([]); setUsedActionKeys([]); setActionUsageCounts({}); setChatHistories({}); setDecisions([]); setChain([]); setProjectLogs([]); setResultDialog(undefined); setHistory([]);
   };
   const savePlay = () => writePlaySession({ mode: scenario.mode, scenarioId: scenario.id, difficulty, guided: difficulty === "guided", state: { snapshot: snapshot(), history } });
-  useEffect(() => {
-    if (!autoResume) return;
-    const saved = readPlaySession();
-    if (saved?.mode === scenario.mode && saved.scenarioId === scenario.id && saved.difficulty === difficulty) {
-      const state = saved.state as { snapshot?: StatefulSnapshot; history?: StatefulSnapshot[] };
-      if (state.snapshot) { restoreSnapshot(state.snapshot); setHistory(state.history ?? []); }
-    }
-  // Restore only when entering from the resume card.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoResume]);
-
   const turn = scenario.turns[turnIndex];
   const informationSet = useMemo(() => new Set(informationIds), [informationIds]);
   const turnActions = scenario.actions.filter(action => action.availableFromTurn <= turnIndex + 1);

@@ -288,6 +288,24 @@ test("keeps the light-mode decision loop intact", async () => {
   assert.match(intro, /intro-shell/);
 });
 
+test("restores saved result screens without rendering a blank simulator", async () => {
+  const [session, light, stateful, hub] = await Promise.all([
+    readFile(new URL("app/lib/playSession.ts", root), "utf8"),
+    readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"),
+  ]);
+  assert.match(session, /PLAY_SAVE_VERSION = 2/);
+  assert.match(session, /isSavedPlaySession/);
+  assert.match(light, /type LightSnapshot = \{[^}]*actionResult: ActionResult \| null/);
+  assert.match(light, /JSON\.stringify\(\{ game, flowStep, recentChanges, actionResult \}\)/);
+  assert.match(light, /requestedFlowStep === "result" && !actionResult \? "decision"/);
+  assert.match(stateful, /value\.phase === "result" && !resultDialog \? "cockpit"/);
+  assert.match(stateful, /normalizeStatefulSnapshot\(savedState\?\.snapshot, scenario\.turns\.length\)/);
+  assert.match(hub, /getStatefulTrainingScenario\(savedPlay\.scenarioId\)/);
+  assert.match(hub, /getStatefulProjectScenario\(savedPlay\.scenarioId\)/);
+});
+
 test("keeps v2 scenarios data-driven and separates learning from behavior review", async () => {
   const [hub, runner, finalResult, themes, types, scenarioIndex, scope, schedule, resources, stakeholders] = await Promise.all([
     readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"), readFile(new URL("app/components/AdvancedSimulator.tsx", root), "utf8"), readFile(new URL("app/components/FinalResultFramework.tsx", root), "utf8"), readFile(new URL("app/data/modeThemes.ts", root), "utf8"), readFile(new URL("src/data/types.ts", root), "utf8"), readFile(new URL("src/data/scenarios/index.ts", root), "utf8"), readFile(new URL("src/data/scenarios/scope-change.ts", root), "utf8"), readFile(new URL("src/data/scenarios/schedule-crisis.ts", root), "utf8"), readFile(new URL("src/data/scenarios/keyperson-exit.ts", root), "utf8"), readFile(new URL("src/data/scenarios/stakeholder-conflict.ts", root), "utf8"),

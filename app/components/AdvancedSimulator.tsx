@@ -12,6 +12,7 @@ import StatefulScenarioRunner from "./StatefulScenarioRunner";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
 import { getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
+import type { SavedPlaySession } from "../lib/playSession";
 
 type Phase = "briefing" | "situation" | "decision" | "result" | "final";
 
@@ -48,11 +49,11 @@ function changeSymbol(key: keyof ProjectState, delta: number) {
   return favorable ? "↑" : "↓";
 }
 
-export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit, onExitToHome, autoResume = false }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: (saved: boolean) => void; onExitToHome: (saved: boolean) => void; autoResume?: boolean }) {
+export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit, onExitToHome, resumeSession }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: (saved: boolean) => void; onExitToHome: (saved: boolean) => void; resumeSession?: SavedPlaySession }) {
   const theme = mode === "project" ? modeThemes.project : modeThemes.training;
   const statefulScenario = mode === "project" ? getStatefulProjectScenario(scenarioId) : getStatefulTrainingScenario(scenarioId);
   if (statefulScenario) {
-    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} autoResume={autoResume} onExit={onExit} onExitToHome={onExitToHome} /></div>;
+    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} resumeSession={resumeSession} onExit={onExit} onExitToHome={onExitToHome} /></div>;
   }
   return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} mode={mode} onExit={() => onExit(false)} /></div>;
 }
