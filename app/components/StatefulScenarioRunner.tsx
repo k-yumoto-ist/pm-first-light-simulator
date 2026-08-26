@@ -24,7 +24,9 @@ import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, formatTurnLabel, getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
 import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, resolveScenarioActionOutcome } from "@/src/data/statefulScenarioLogic.mjs";
 import { PlayNavigationMenu } from "./PlayNavigationMenu";
-import { clearPlaySession, writePlaySession, type SavedPlaySession } from "../lib/playSession";
+import { DecisionAnalysisTimeline } from "./DecisionAnalysisTimeline";
+import { deleteSave, writePlaySession, type SavedPlaySession } from "../lib/playSession";
+import { buildDecisionAnalysis, summarizeDecisionAnalysis } from "../lib/decisionAnalysis";
 
 type PlayPhase = "briefing" | "situation" | "cockpit" | "result" | "final";
 type ChainItem = { turn: number; timing: string; kind: "information" | "decision" | "consequence"; title: string; effect: string };
@@ -127,6 +129,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   const [showInformation, setShowInformation] = useState(false);
   const [showProjectDetails, setShowProjectDetails] = useState(false);
   const [history, setHistory] = useState<StatefulSnapshot[]>(() => resumedHistory);
+  const [activeSaveId, setActiveSaveId] = useState<string | undefined>(() => resumeSession?.id);
 
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "auto" }); }, [phase, turnIndex]);
 
@@ -138,9 +141,13 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   const pushHistory = () => setHistory(current => [...current, snapshot()]);
   const undo = () => setHistory(current => { const previous = current.at(-1); if (previous) restoreSnapshot(previous); return current.slice(0, -1); });
   const restart = () => {
-    clearPlaySession(); setPhase("briefing"); setTurnIndex(0); setInvestigationsLeft(investigationBudget); setMetrics(scenario.initialMetrics); setFlags(scenario.initialFlags); setInformationIds([]); setUsedActionKeys([]); setActionUsageCounts({}); setChatHistories({}); setDecisions([]); setChain([]); setProjectLogs([]); setResultDialog(undefined); setHistory([]);
+    setActiveSaveId(undefined); setPhase("briefing"); setTurnIndex(0); setInvestigationsLeft(investigationBudget); setMetrics(scenario.initialMetrics); setFlags(scenario.initialFlags); setInformationIds([]); setUsedActionKeys([]); setActionUsageCounts({}); setChatHistories({}); setDecisions([]); setChain([]); setProjectLogs([]); setResultDialog(undefined); setHistory([]);
   };
-  const savePlay = () => writePlaySession({ mode: scenario.mode, scenarioId: scenario.id, difficulty, guided: difficulty === "guided", state: { snapshot: snapshot(), history } });
+  const savePlay = () => {
+    const saved = writePlaySession({ id: activeSaveId, mode: scenario.mode, scenarioId: scenario.id, scenarioName: scenario.title, difficulty, guided: difficulty === "guided", progress: { current: turnIndex + 1, total: scenario.turns.length, label: "ターン" }, state: { snapshot: snapshot(), history } });
+    if (saved) setActiveSaveId(saved.id);
+    return Boolean(saved);
+  };
   const turn = scenario.turns[turnIndex];
   const informationSet = useMemo(() => new Set(informationIds), [informationIds]);
   const turnActions = scenario.actions.filter(action => action.availableFromTurn <= turnIndex + 1);
@@ -210,7 +217,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
     setMetrics(after); setFlags(nextFlags); setDecisions(current => [...current, record]);
     setChain(current => [...current, ...appliedChains.map(effect => ({ turn: turnIndex + 1, timing: turn.timing, kind: "decision" as const, title: decision.title, effect }))]);
     const decisionTags = categoryTags[scenario.primaryDomain === "schedule" ? "schedule" : scenario.primaryDomain === "risk" ? "risk" : scenario.primaryDomain === "resources" ? "team" : scenario.primaryDomain === "stakeholders" ? "hearing" : "scope"];
-    setProjectLogs(current => [...current, { id: `decision-${turnIndex + 1}`, kind: "action", turn: turnIndex + 1, day: turnIndex + 1, event: turn.title, label: decision.title, detail: decision.description, result: whatHappened, why: decision.why, learning: decision.pmPoint, changes, tags: decisionTags }]);
+    setProjectLogs(current => [...current, { id: `decision-${turnIndex + 1}`, kind: "action", turn: turnIndex + 1, day: turnIndex + 1, event: turn.title, label: decision.title, detail: decision.description, result: whatHappened, why: decision.why, learning: decision.pmPoint, changes, tags: decisionTags, alternatives: turn.decisions.filter(item => item.id !== decision.id).map(item => item.title) }]);
     setSelectedDecision(undefined);
     setResultDialog({ result: { title: decision.title, occurred: whatHappened, why: decision.why, learning: decision.pmPoint, tags: decisionTags, changes, unlocked: [] }, advancesTurn: true });
     setPhase("result");
@@ -218,7 +225,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
 
   const advanceTurn = () => {
     if (turnIndex >= scenario.turns.length - 1) {
-      clearPlaySession();
+      if (activeSaveId) deleteSave(activeSaveId);
       setResultDialog(undefined);
       setPhase("final");
       return;
@@ -235,7 +242,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
     setTurnIndex(nextIndex); setInvestigationsLeft(investigationBudget); setActionUsageCounts({}); setResultDialog(undefined); setPhase("situation");
   };
 
-  if (phase === "final") return <StatefulScenarioReport scenario={scenario} metrics={metrics} flags={flags} informationSet={informationSet} decisions={decisions} chain={chain} onExit={onExit} onRestart={restart} onExitToHome={onExitToHome} />;
+  if (phase === "final") return <StatefulScenarioReport scenario={scenario} metrics={metrics} flags={flags} informationSet={informationSet} decisions={decisions} projectLogs={projectLogs} onExit={onExit} onRestart={restart} onExitToHome={onExitToHome} />;
   if (phase === "briefing") {
     const intro = scenario.intro;
     const briefItems = [
@@ -257,7 +264,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   const situationUnknown = difficulty === "guided" ? unknownInformation.map(info => ({ id: info.id, label: info.label })) : unknownInformation.length ? [{ id: "unconfirmed", label: "判断前に確認したい事項が残っています" }] : [];
   const openDecision = () => { if (visibleDecisions[0]) setSelectedDecision(visibleDecisions[0]); };
   const requiredDecision = <button type="button" className="scenario-decision-trigger step-scenario-decision" onClick={openDecision} disabled={!visibleDecisions.length}><span>今回の必須判断</span><strong>{turn.decisionLabel ?? `${turn.title}への対応方針`}</strong><small>未決定 — 判断する</small></button>;
-  const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes[scenario.mode].label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); else clearPlaySession(); onExitToHome(save); }} /></div></header>;
+  const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes[scenario.mode].label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); onExitToHome(save); }} /></div></header>;
 
   return <main className="simulation-shell stateful-canonical-shell">
     {simulationHeader}
@@ -277,7 +284,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   </main>;
 }
 
-function StatefulScenarioReport({ scenario, metrics, flags, informationSet, decisions, chain, onExit, onRestart, onExitToHome }: { scenario: StatefulScenarioDefinition; metrics: SimulationMetrics; flags: Record<string, boolean | number | string>; informationSet: Set<string>; decisions: DecisionRecord[]; chain: ChainItem[]; onExit: (saved: boolean) => void; onRestart: () => void; onExitToHome: (saved: boolean) => void }) {
+function StatefulScenarioReport({ scenario, metrics, flags, informationSet, decisions, projectLogs, onExit, onRestart, onExitToHome }: { scenario: StatefulScenarioDefinition; metrics: SimulationMetrics; flags: Record<string, boolean | number | string>; informationSet: Set<string>; decisions: DecisionRecord[]; projectLogs: ActionLog[]; onExit: (saved: boolean) => void; onRestart: () => void; onExitToHome: (saved: boolean) => void }) {
   const scoredInformation: Array<{ id: string; weight: number; reviewHint?: string }> = scenario.resultConfig.scoredInformation ?? scenario.information.map(info => ({ id: info.id, weight: 1 }));
   const informationWeights = new Map(scoredInformation.map(item => [item.id, item.weight]));
   const byImportance = (a: { id: string }, b: { id: string }) => (informationWeights.get(b.id) ?? 0) - (informationWeights.get(a.id) ?? 0);
@@ -322,7 +329,9 @@ function StatefulScenarioReport({ scenario, metrics, flags, informationSet, deci
   ];
   const behaviorEntries = [...evidenceWeights.entries()].sort((a, b) => b[1] - a[1]);
   const informationReview = <FinalResultSection eyebrow="情報収集の振り返り" title="何を知って、何を知らないまま決めたか"><div className="information-review"><div><h3>取得した重要情報</h3>{acquiredImportant.length ? <ul>{acquiredImportant.map(info => <li key={info.id}><strong>✓ {info.label}</strong><span>{info.detail}</span></li>)}</ul> : <p>重要情報を取得せずに判断しました。</p>}{acquiredSupplemental.length ? <><h3>その他に確認した情報</h3><ul>{acquiredSupplemental.map(info => <li key={info.id}><strong>✓ {info.label}</strong><span>{info.detail}</span></li>)}</ul></> : null}</div><div><h3>見落とした重要情報</h3>{missedImportant.length ? <ul>{missedImportant.map(info => { const scored = scoredInformation.find(item => item.id === info.id); return <li key={info.id}><strong>— {info.label}</strong><span>{scored?.reviewHint ?? `${sourceActionsByInformation.get(info.id)?.join("／") || info.source}で確認できました。`}</span></li>; })}</ul> : <p>このシナリオの重要情報をすべて確認しました。</p>}</div></div></FinalResultSection>;
-  const decisionChain = <FinalResultSection eyebrow="判断の連鎖" title={scenario.mode === "training" ? "事実から判断まで、どうつないだか" : "判断が後からどう効いたか"}><div className="decision-chain">{chain.map((item, index) => <div key={`${item.turn}-${index}`} className={`chain-${item.kind}`}><b>{formatTimingLabel(item.timing)}</b><span>{item.title}</span><strong>{item.effect}</strong>{index < chain.length - 1 ? <i>↓</i> : null}</div>)}</div></FinalResultSection>;
+  const decisionAnalysis = buildDecisionAnalysis(projectLogs, true);
+  const decisionSummary = summarizeDecisionAnalysis(decisionAnalysis);
+  const decisionChain = <FinalResultSection eyebrow="判断の連鎖" title={scenario.mode === "training" ? "事実から判断まで、どうつないだか" : "判断が結果へつながった道筋"}><DecisionAnalysisTimeline items={decisionAnalysis} summary={decisionSummary} /></FinalResultSection>;
   return <FinalResultFramework mode={scenario.mode} title={scenario.title} score={totalScore} style={scenario.resultConfig.showPmStyle ?? scenario.mode === "project" ? style : undefined} summary={scenario.mode === "training" ? "プロジェクト成果よりも、必要な事実を集め、整理し、判断へつなげたプロセスを重く評価しています。" : "正解率ではなく、最終状態・判断プロセス・情報収集を合わせたプロジェクト運営全体の指標です。"} outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={breakdown} actions={<><button className="v2-secondary" onClick={() => onExit(false)}>別のテーマを選ぶ</button><button className="v2-secondary" onClick={() => onExitToHome(false)}>モードを変更する</button><button className="primary" onClick={onRestart}>{scenario.mode === "training" ? "もう一度挑戦" : "最初からプレイ"}</button></>}>
     {scenario.mode === "training" ? <>
       <FinalResultSection eyebrow="良かった判断" title="今回できていた考え方"><div className="stateful-behavior-review">{behaviorEntries.length ? behaviorEntries.slice(0, 4).map(([tag, weight]) => <div key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><p>{weight > 2 ? "複数の場面でこの行動が見られました。" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</p></div>) : <p>別の情報収集順も試し、判断材料の違いを確かめてみましょう。</p>}</div></FinalResultSection>

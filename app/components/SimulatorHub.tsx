@@ -10,7 +10,7 @@ import { getStatefulTrainingScenario, trainingScenarioCards } from "@/src/data/t
 import { getStatefulProjectScenario } from "@/src/data/scenarios/stateful-project-scenarios";
 import { modeThemes, modeThemeStyle } from "../data/modeThemes";
 import { difficultyLabels } from "../data/uiLabels";
-import { deleteSave, formatSavedAt, loadGame, type SavedPlaySession } from "../lib/playSession";
+import { deleteSave, formatSavedAt, loadGames, type SavedPlaySession } from "../lib/playSession";
 import { AccessibleDialog } from "./AccessibleDialog";
 
 type View = "home" | "light" | "training" | "scenario" | "advanced";
@@ -22,6 +22,7 @@ const difficulties: Array<{ id: Difficulty; label: string; description: string }
 ];
 
 function getSavedScenarioLabel(savedPlay: SavedPlaySession) {
+  if (savedPlay.scenarioName) return savedPlay.scenarioName;
   if (!savedPlay.scenarioId) return undefined;
   if (savedPlay.mode === "training") return trainingScenarioCards.find(item => item.id === savedPlay.scenarioId)?.label;
   if (savedPlay.mode === "project") {
@@ -36,43 +37,41 @@ export default function SimulatorHub() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>();
   const [difficulty, setDifficulty] = useState<Difficulty>("standard");
   const [entryMode, setEntryMode] = useState<ScenarioMode>("training");
-  const [savedPlay, setSavedPlay] = useState<SavedPlaySession | null>(null);
-  const [resumeRequested, setResumeRequested] = useState(false);
-  const [confirmDeleteSave, setConfirmDeleteSave] = useState(false);
+  const [savedGames, setSavedGames] = useState<SavedPlaySession[]>([]);
+  const [resumeSession, setResumeSession] = useState<SavedPlaySession>();
+  const [confirmDeleteSave, setConfirmDeleteSave] = useState<SavedPlaySession>();
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [view]);
   useEffect(() => {
-    const timer = window.setTimeout(() => setSavedPlay(loadGame()), 0);
+    const timer = window.setTimeout(() => setSavedGames(loadGames()), 0);
     return () => window.clearTimeout(timer);
   }, []);
   const rememberExit = (saved: boolean, destination: View = "home") => {
-    if (saved) setSavedPlay(loadGame());
-    else setSavedPlay(loadGame());
-    setResumeRequested(false);
+    setSavedGames(loadGames());
+    setResumeSession(undefined);
     setView(destination);
   };
 
-  const resumePlay = () => {
-    if (!savedPlay) return;
-    if (savedPlay.mode === "light") { setResumeRequested(true); setView("light"); return; }
+  const resumePlay = (savedPlay: SavedPlaySession) => {
+    if (savedPlay.mode === "light") { setResumeSession(savedPlay); setView("light"); return; }
     const scenarioExists = savedPlay.scenarioId && (savedPlay.mode === "training" ? getStatefulTrainingScenario(savedPlay.scenarioId) : getStatefulProjectScenario(savedPlay.scenarioId));
     if (!scenarioExists) {
-      deleteSave();
-      setSavedPlay(null);
+      deleteSave(savedPlay.id);
+      setSavedGames(loadGames());
       return;
     }
-    setResumeRequested(true);
+    setResumeSession(savedPlay);
     setEntryMode(savedPlay.mode);
     setSelectedScenarioId(savedPlay.scenarioId);
     setDifficulty(savedPlay.difficulty ?? "standard");
     setView("advanced");
   };
 
-  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator resumeSession={resumeRequested ? savedPlay ?? undefined : undefined} onExit={(saved) => rememberExit(saved)} /></div>;
+  if (view === "light") return <div className={`mode-simulator ${modeThemes.light.className}`} style={modeThemeStyle("light")}><PMSimulator resumeSession={resumeSession} onExit={(saved) => rememberExit(saved)} /></div>;
   if (view === "advanced" && selectedScenarioId) {
-    return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} resumeSession={resumeRequested ? savedPlay ?? undefined : undefined} onExit={(saved) => rememberExit(saved, entryMode === "training" ? "training" : "scenario")} onExitToHome={(saved) => rememberExit(saved)} />;
+    return <AdvancedSimulator scenarioId={selectedScenarioId} difficulty={difficulty} mode={entryMode} resumeSession={resumeSession} onExit={(saved) => rememberExit(saved, entryMode === "training" ? "training" : "scenario")} onExitToHome={(saved) => rememberExit(saved)} />;
   }
 
   if (view === "training" || view === "scenario") {
@@ -125,7 +124,7 @@ export default function SimulatorHub() {
           </div>
           <div className="v2-setup-cta">
             <p>{selectedScenarioId ? "準備ができました。状況を読み、最初の判断を始めましょう。" : "体験するテーマを選んでください。"}</p>
-            <button className="primary large" disabled={!selectedScenarioId} onClick={() => { setResumeRequested(false); setView("advanced"); }}>シミュレーションを開始 <span>→</span></button>
+            <button className="primary large" disabled={!selectedScenarioId} onClick={() => { setResumeSession(undefined); setView("advanced"); }}>シミュレーションを開始 <span>→</span></button>
           </div>
         </section>
       </main>
@@ -141,15 +140,18 @@ export default function SimulatorHub() {
         <h1>PMとして考えることを、<br /><em>プロジェクトの結果</em>から学ぶ。</h1>
         <p>知識を先に覚えるのではなく、状況を読み、判断し、起きたことを振り返るシミュレーションです。</p>
       </section>
-      {savedPlay ? <section className="v2-resume-card" aria-label="保存したプレイ">
-        <div><p className="v2-kicker">続きからプレイ</p><strong>{savedPlay.mode === "light" ? modeThemes.light.label : modeThemes[savedPlay.mode].label}</strong><span>{getSavedScenarioLabel(savedPlay) ? `${getSavedScenarioLabel(savedPlay)} / ` : ""}難易度：{difficultyLabels[savedPlay.difficulty ?? "standard"]}</span><small>{formatSavedAt(savedPlay.savedAt)} 保存</small></div>
-        <div><button className="primary" onClick={resumePlay}>続きからプレイ</button><button className="v2-text-button" onClick={() => setConfirmDeleteSave(true)}>保存データを削除</button></div>
+      {savedGames.length > 0 ? <section className="v2-saved-games" aria-label="保存したプレイ一覧">
+        <div className="v2-saved-games-heading"><p className="v2-kicker">続きからプレイ</p><h2>保存したプレイ</h2><span>{savedGames.length}件</span></div>
+        <div className="v2-saved-games-grid">{savedGames.map(savedPlay => <article className="v2-resume-card" key={savedPlay.id}>
+          <div><span className="mode-badge">{modeThemes[savedPlay.mode].label}</span><strong>{getSavedScenarioLabel(savedPlay) ?? "最初の担当案件"}</strong><span>難易度：{difficultyLabels[savedPlay.difficulty ?? "standard"]}</span><span>進捗 {savedPlay.progress.current} / {savedPlay.progress.total}</span><small>{formatSavedAt(savedPlay.updatedAt)} 保存</small></div>
+          <div><button className="primary" onClick={() => resumePlay(savedPlay)}>再開する</button><button className="v2-text-button" onClick={() => setConfirmDeleteSave(savedPlay)}>削除</button></div>
+        </article>)}</div>
       </section> : null}
-      {confirmDeleteSave ? <AccessibleDialog onClose={() => setConfirmDeleteSave(false)} labelledBy="delete-save-title" overlayClassName="confirm-overlay" dialogClassName="advance-confirm-dialog">
+      {confirmDeleteSave ? <AccessibleDialog onClose={() => setConfirmDeleteSave(undefined)} labelledBy="delete-save-title" overlayClassName="confirm-overlay" dialogClassName="advance-confirm-dialog">
         <p>保存データ</p>
-        <h2 id="delete-save-title">保存したプレイデータを削除しますか？</h2>
-        <p>削除すると元に戻せません。新しいプレイは通常どおり開始できます。</p>
-        <footer><button type="button" className="dialog-secondary" onClick={() => setConfirmDeleteSave(false)}>キャンセル</button><button type="button" className="play-delete-button" onClick={() => { deleteSave(); setSavedPlay(null); setConfirmDeleteSave(false); }}>削除する</button></footer>
+        <h2 id="delete-save-title">この保存データを削除しますか？</h2>
+        <p>「{getSavedScenarioLabel(confirmDeleteSave) ?? "最初の担当案件"}」を削除します。他の保存データには影響しません。</p>
+        <footer><button type="button" className="dialog-secondary" onClick={() => setConfirmDeleteSave(undefined)}>キャンセル</button><button type="button" className="play-delete-button" onClick={() => { deleteSave(confirmDeleteSave.id); setSavedGames(loadGames()); setConfirmDeleteSave(undefined); }}>削除する</button></footer>
       </AccessibleDialog> : null}
       <section className="v2-mode-grid" aria-label="プレイモード">
         <button className={`v2-mode-card light ${modeThemes.light.className}`} style={modeThemeStyle("light")} onClick={() => setView("light")}>

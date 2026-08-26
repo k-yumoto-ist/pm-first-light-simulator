@@ -12,6 +12,7 @@ import { SituationStep } from "./SituationStep";
 import { SimulatorIntro } from "./SimulatorIntro";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder } from "./StakeholderChatDrawer";
 import { PlayNavigationMenu } from "./PlayNavigationMenu";
+import { DecisionAnalysisTimeline } from "./DecisionAnalysisTimeline";
 import { characters } from "../data/characters";
 import { decisionResultCopy, learningByArea, pmActions, type PMActionDefinition } from "../data/actions";
 import { buildFeedback } from "../data/feedback";
@@ -21,7 +22,8 @@ import { conversationEngine } from "../lib/conversationEngine";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, getHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
 import type { ActionLog, ActionResult, CharacterId, Effect, GameFlags, GameState, MetricChange, Metrics, ScoreKey } from "../types/game";
-import { clearPlaySession, writePlaySession, type SavedPlaySession } from "../lib/playSession";
+import { deleteSave, writePlaySession, type SavedPlaySession } from "../lib/playSession";
+import { buildDecisionAnalysis, summarizeDecisionAnalysis } from "../lib/decisionAnalysis";
 
 type PendingAction =
   | { kind: "topic"; id: string; confirmation: ActionConfirmation }
@@ -96,6 +98,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
   const [showScenarioChoices, setShowScenarioChoices] = useState(false);
   const [confirmAdvance, setConfirmAdvance] = useState(false);
   const [history, setHistory] = useState<LightSnapshot[]>(() => resumedHistory);
+  const [activeSaveId, setActiveSaveId] = useState<string | undefined>(() => resumeSession?.id);
   const storedScoresRaw = useSyncExternalStore(subscribeToStoredScore, getStoredScoreSnapshot, getServerScoreSnapshot);
   const storedScores = useMemo<Record<ScoreKey, number> | null>(() => { try { return storedScoresRaw ? JSON.parse(storedScoresRaw) : null; } catch { return null; } }, [storedScoresRaw]);
   const [sessionPreviousScores, setPreviousScores] = useState<Record<ScoreKey, number> | null>(null);
@@ -117,8 +120,12 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
   };
   const pushHistory = () => setHistory(current => [...current, snapshot()]);
   const undo = () => setHistory(current => { const previous = current.at(-1); if (previous) restoreSnapshot(previous); return current.slice(0, -1); });
-  const savePlay = () => writePlaySession({ mode: "light", difficulty: "standard", guided: false, state: { snapshot: snapshot(), history } });
-  const finishAction = (next: GameState, title: string, detail: string, occurred: string, why: string, learning: string, tags: ScoreKey[]) => {
+  const savePlay = () => {
+    const saved = writePlaySession({ id: activeSaveId, mode: "light", scenarioName: "最初の担当案件", difficulty: "standard", guided: false, progress: { current: game.turn, total: turns.length, label: "ターン" }, state: { snapshot: snapshot(), history } });
+    if (saved) setActiveSaveId(saved.id);
+    return Boolean(saved);
+  };
+  const finishAction = (next: GameState, title: string, detail: string, occurred: string, why: string, learning: string, tags: ScoreKey[], alternatives?: string[]) => {
     pushHistory();
     const changes = getChanges(game.metrics, next.metrics);
     const unlockedMap: { key: keyof GameFlags; copy: string }[] = [
@@ -128,7 +135,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
       { key: "juniorProgressChecked", copy: "若手メンバーの進捗に支援が必要な兆候" },
     ];
     const unlocked = unlockedMap.filter(item => !game.flags[item.key] && next.flags[item.key]).map(item => item.copy);
-    const log: ActionLog = { id: crypto.randomUUID(), kind: "action", turn: game.turn, day: turn.day, event: game.turnNotice, label: title, detail, result: occurred, why, learning, changes, tags };
+    const log: ActionLog = { id: crypto.randomUUID(), kind: "action", turn: game.turn, day: turn.day, event: game.turnNotice, label: title, detail, result: occurred, why, learning, changes, tags, alternatives };
     window.setTimeout(() => {
       setGame({ ...next, actionsLeft: game.actionsLeft - 1, logs: [...game.logs, log] });
       setActionResult({ title, occurred, why, learning, changes, tags, unlocked });
@@ -204,7 +211,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     setExecutingId(id); setFlowStep("decision");
     const next = applyEffect(game, effects[id]); next.requestDecision = id;
     const copy = decisionResultCopy[id];
-    finishAction(next, choice.label, choice.note, copy.occurred, copy.why, copy.learning, ["scope", "schedule"]);
+    finishAction(next, choice.label, choice.note, copy.occurred, copy.why, copy.learning, ["scope", "schedule"], requestChoices.filter(item => item.id !== id).map(item => item.label));
   };
 
   const chooseRelease = (id: string) => {
@@ -221,7 +228,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     setExecutingId(id); setFlowStep("decision");
     const next = applyEffect(game, effects[id]); next.releaseDecision = id;
     const copy = decisionResultCopy[id];
-    finishAction(next, choice.label, choice.note, copy.occurred, copy.why, copy.learning, ["scope", "schedule", "stakeholder", "risk"]);
+    finishAction(next, choice.label, choice.note, copy.occurred, copy.why, copy.learning, ["scope", "schedule", "stakeholder", "risk"], releaseChoices.filter(item => item.id !== id).map(item => item.label));
   };
 
   const prepareScenarioDecision = (kind: "request" | "release", id: string) => {
@@ -262,7 +269,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     if (game.turn === 4) {
       if (!game.releaseDecision) return;
       try { localStorage.setItem("pm-simulator-last-score", JSON.stringify(calculateScores(game))); } catch {}
-      clearPlaySession();
+      if (activeSaveId) deleteSave(activeSaveId);
       setGame({ ...game, phase: "result" }); setFlowStep("result"); return;
     }
     const nextTurn = game.turn + 1;
@@ -293,7 +300,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     advanceTurn();
   };
   const restart = () => {
-    clearPlaySession(); setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null); setHistory([]);
+    setActiveSaveId(undefined); setPreviousScores(scores); setGame(makeInitialState()); setFlowStep("situation"); setActionResult(null); setHistory([]);
     setSelectedActionId("hearing"); setActionDetailOpen(false); setRecentChanges([]); setPendingAction(null); setShowScenarioChoices(false); setConfirmAdvance(false);
     scrollPageToTop();
   };
@@ -337,9 +344,11 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
       { label: "顧客信頼", status: getMetricStatusLabel("trust", game.metrics.trust), tone: outcomeToneFor(game.metrics.trust) },
       { label: "チーム状態", status: getMetricStatusLabel("team", game.metrics.team), tone: outcomeToneFor(game.metrics.team) },
     ];
+    const decisionAnalysis = buildDecisionAnalysis(game.logs);
+    const decisionSummary = summarizeDecisionAnalysis(decisionAnalysis);
     return <FinalResultFramework mode="light" title={releaseSuccess ? "プロジェクトは着地しました。" : "課題を残す着地になりました。"} score={avg} previousScore={previousTotal} style={style} summary="4つのPM観点に基づく既存スコアを、プロジェクト運営全体の振り返りとして表示しています。" outcomeSummary={outcomeSummary} metrics={finalMetrics} breakdown={(Object.keys(scores) as ScoreKey[]).map(key => ({ label: scoreLabels[key], score: scores[key] }))} actions={<><button className="v2-secondary" onClick={() => onExit(false)}>モードを変更する</button><button className="primary large" onClick={restart}>最初からプレイ <span>↻</span></button></>}>
       <FinalResultSection eyebrow="プロジェクトの着地点" title="今回の判断で、何を動かしたか"><div className="final-review-grid"><article><span>よく選んだ行動</span><strong>{frequent}</strong><p>今回の判断傾向を表しています。</p></article><article><span>対応できた問題</span><ul>{addressed.length ? addressed.map(item => <li key={item}>{item}</li>) : <li>明確に対応できた問題はありませんでした</li>}</ul></article><article><span>次に確認したい観点</span><ul>{missed.length ? missed.map(item => <li key={item}>{item}</li>) : <li>主要な問題へ対応できました</li>}</ul></article><article><span>影響が大きかった判断</span><strong>{biggest?.label || "—"}</strong><p>{biggest?.why || "記録なし"}</p></article></div></FinalResultSection>
-      <FinalResultSection eyebrow="判断の連鎖" title="主要な判断と結果"><ProjectLog logs={game.logs} initialLimit={4} /></FinalResultSection>
+      <FinalResultSection eyebrow="判断の連鎖" title="判断が結果へつながった道筋"><DecisionAnalysisTimeline items={decisionAnalysis} summary={decisionSummary} /></FinalResultSection>
       <FinalResultSection eyebrow="PMとしての振り返り" title="今回見られた行動"><div className="feedback-list">{feedback.map(item => <article key={item.area} className={item.positive ? "positive" : "lesson"}><div className="feedback-area">{scoreLabels[item.area]}</div><div><h3>{item.title}</h3><p>{item.story}</p></div></article>)}</div></FinalResultSection>
       <FinalResultSection eyebrow="PMBOKで振り返る" title="体験をPMBOKで言語化する"><div className="final-pmbok-list">{feedback.map(item => <article key={item.area}><strong>{scoreLabels[item.area]}</strong><p>{item.lesson}</p></article>)}</div></FinalResultSection>
       <FinalResultSection eyebrow="次回に向けて" title="次に意識したいPMの基本"><ul className="final-takeaways"><li>誰が意思決定者なのかを確認する</li><li>要望をそのまま受けず影響を見る</li><li>スケジュールは定期的に確認する</li><li>リスクは問題になる前に考える</li><li>プロジェクトは人との合意形成で進む</li></ul></FinalResultSection>
@@ -357,7 +366,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     <header className="simulation-header">
       <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes.light.label}</small></div>
       <div className="time-context"><span>{turn.day}日目</span><strong>{formatTimingLabel(turn.week)}</strong><small>リリースまで {turn.remaining}日</small></div>
-      <div className="header-utilities"><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{game.logs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); else clearPlaySession(); onExit(save); }} /></div>
+      <div className="header-utilities"><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{game.logs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); onExit(save); }} /></div>
     </header>
     <FlowSteps current={flowStep} />
     {flowStep === "situation" && <SituationStep turnNumber={game.turn} theme={turn.theme} title={turn.title} notice={game.turnNotice} consider={turn.consider} flags={game.flags} onDecide={() => { setFlowStep("decision"); scrollPageToTop(); }} />}

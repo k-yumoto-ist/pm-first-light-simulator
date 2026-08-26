@@ -43,6 +43,7 @@ export type ActionLog = {
   learning: string;
   changes: MetricChange[];
   tags: ScoreKey[];
+  alternatives?: string[];
 };
 
 export type MetricChange = {

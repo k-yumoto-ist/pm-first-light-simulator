@@ -296,8 +296,8 @@ test("restores saved result screens without rendering a blank simulator", async 
     readFile(new URL("app/components/SimulatorHub.tsx", root), "utf8"),
     readFile(new URL("src/data/scenarios/stateful-project-scenarios.ts", root), "utf8"),
   ]);
-  assert.match(session, /PLAY_SAVE_VERSION = 2/);
-  assert.match(session, /isSavedPlaySession/);
+  assert.match(session, /PLAY_SAVE_VERSION = 3/);
+  assert.match(session, /isSavedSession/);
   assert.match(light, /type LightSnapshot = \{[^}]*actionResult: ActionResult \| null/);
   assert.match(light, /JSON\.stringify\(\{ game, flowStep, recentChanges, actionResult \}\)/);
   assert.match(light, /requestedFlowStep === "result" && !actionResult \? "decision"/);
@@ -309,7 +309,7 @@ test("restores saved result screens without rendering a blank simulator", async 
   assert.match(projectRegistry, /Object\.values\(statefulProjectScenarios\)\.find\(\(scenario\) => scenario\.id === id\)/);
 });
 
-test("supports one-slot local save, safe resume, confirmed deletion, and completion cleanup", async () => {
+test("supports multiple local saves, migration, individual deletion, and scoped completion cleanup", async () => {
   const [session, menu, hub, light, stateful] = await Promise.all([
     readFile(new URL("app/lib/playSession.ts", root), "utf8"),
     readFile(new URL("app/components/PlayNavigationMenu.tsx", root), "utf8"),
@@ -318,19 +318,47 @@ test("supports one-slot local save, safe resume, confirmed deletion, and complet
     readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
   ]);
   assert.match(session, /export function saveGame/);
+  assert.match(session, /export function loadGames/);
   assert.match(session, /export function loadGame/);
   assert.match(session, /export function deleteSave/);
   assert.match(session, /export function hasSaveData/);
-  assert.match(session, /window\.localStorage\.setItem\(PLAY_SAVE_KEY/);
+  assert.match(session, /window\.localStorage\.setItem\(SAVED_GAMES_KEY/);
   assert.match(session, /JSON\.parse/);
-  assert.match(session, /window\.localStorage\.removeItem\(PLAY_SAVE_KEY\)/);
+  assert.match(session, /migrateLegacyIfNeeded/);
+  assert.match(session, /saves\.filter\(\(save\) => save\.id !== id\)/);
   assert.match(menu, /プレイ状況を保存しました/);
   assert.match(menu, /role="status" aria-live="polite"/);
   assert.match(hub, /続きからプレイ/);
-  assert.match(hub, /保存したプレイデータを削除しますか/);
-  assert.match(hub, /削除すると元に戻せません/);
-  assert.match(light, /clearPlaySession\(\);\s*setGame\(\{ \.\.\.game, phase: "result" \}\)/);
-  assert.match(stateful, /clearPlaySession\(\);\s*setResultDialog\(undefined\);\s*setPhase\("final"\)/);
+  assert.match(hub, /保存したプレイ一覧/);
+  assert.match(hub, /savedGames\.map/);
+  assert.match(hub, /この保存データを削除しますか/);
+  assert.match(light, /if \(activeSaveId\) deleteSave\(activeSaveId\)/);
+  assert.match(stateful, /if \(activeSaveId\) deleteSave\(activeSaveId\)/);
+  assert.doesNotMatch(light, /else clearPlaySession/);
+  assert.doesNotMatch(stateful, /else clearPlaySession/);
+});
+
+test("renders causal decision analysis instead of a flat decision log", async () => {
+  const [analysis, timeline, light, stateful, styles] = await Promise.all([
+    readFile(new URL("app/lib/decisionAnalysis.ts", root), "utf8"),
+    readFile(new URL("app/components/DecisionAnalysisTimeline.tsx", root), "utf8"),
+    readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(analysis, /buildDecisionAnalysis/);
+  assert.match(analysis, /summarizeDecisionAnalysis/);
+  assert.match(timeline, /今回の判断傾向/);
+  assert.match(timeline, /あなたの判断/);
+  assert.match(timeline, /直後に起きたこと/);
+  assert.match(timeline, /後から発生した影響/);
+  assert.match(timeline, /学習ポイント/);
+  assert.match(timeline, /良かった判断/);
+  assert.match(timeline, /見直せそうな判断/);
+  assert.match(light, /<DecisionAnalysisTimeline/);
+  assert.match(stateful, /<DecisionAnalysisTimeline/);
+  assert.match(styles, /\.decision-timeline-item/);
+  assert.match(styles, /@media \(max-width: 720px\)/);
 });
 
 test("keeps v2 scenarios data-driven and separates learning from behavior review", async () => {
