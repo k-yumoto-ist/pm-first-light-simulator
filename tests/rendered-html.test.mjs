@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, resolveScenarioActionOutcome } from "../src/data/statefulScenarioLogic.mjs";
+import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, hasScenarioActionBeenUsed, isScenarioActionComplete, resolveScenarioActionOutcome } from "../src/data/statefulScenarioLogic.mjs";
 
 const root = new URL("../", import.meta.url);
 
@@ -139,6 +139,38 @@ test("resolves the same Action differently from acquired facts and limits per-tu
   assert.equal(complete.usedConditionalOutcome, true);
   assert.equal(getScenarioActionUsageKey(action, 1), "1:build_option");
   assert.equal(getScenarioActionUsageKey(action, 2), "2:build_option", "a per-turn Action becomes available on the next turn");
+  assert.equal(isScenarioActionComplete(action, 2, ["fact_a", "fact_b"], {}), false, "the Action remains useful until its finding is actually acquired");
+  assert.equal(isScenarioActionComplete(action, 2, ["fact_a", "fact_b", "option"], {}), true, "a completed conditional analysis cannot consume another turn with the same result");
+  assert.equal(getScenarioActionUsageKey({ id: "fixed_fact", repeatPolicy: "once" }, 1), getScenarioActionUsageKey({ id: "fixed_fact", repeatPolicy: "once" }, 2), "a fixed fact remains unavailable after its first use");
+  assert.equal(hasScenarioActionBeenUsed({ id: "formal_record", repeatPolicy: "once" }, 3, ["2:formal_record"]), true, "a legacy per-turn save remains completed after the Action changes to once");
+});
+
+test("only repeats scenario Actions when another turn can produce a meaningful result", async () => {
+  const actionFiles = ["scope-change", "schedule-crisis", "keyperson-exit", "stakeholder-conflict"];
+  for (const scenario of actionFiles) {
+    const actions = await readFile(new URL(`src/data/scenarios/${scenario}-action-space.ts`, root), "utf8");
+    const actionBlocks = [...actions.matchAll(/^  \{\s*(?:\r?\n\s*)?id: "([^"]+)"[\s\S]*?(?=^  \{\s*(?:\r?\n\s*)?id: "|^\];)/gm)];
+    assert.ok(actionBlocks.length >= 18, `${scenario} should expose its complete Action space`);
+    for (const [, id] of actionBlocks) {
+      const block = actionBlocks.find(match => match[1] === id)?.[0] ?? "";
+      if (!/repeatPolicy: "per-turn"/.test(block)) continue;
+      assert.match(block, /outcomesByTurn:|conditionalOutcomes:/, `${scenario}:${id} must change by turn or newly acquired context when repeated`);
+      if (/outcomesByTurn:/.test(block)) {
+        for (const turn of [2, 3, 4, 5]) {
+          assert.match(block, new RegExp(`(?:outcomesByTurn:[\\s\\S]*?)${turn}: \\{`), `${scenario}:${id} must return a current result on turn ${turn}`);
+        }
+        const results = [...block.matchAll(/result: "([^"]+)"/g)].map(match => match[1]);
+        assert.equal(new Set(results).size, results.length, `${scenario}:${id} must not repeat the same result text across turns`);
+      }
+    }
+    assert.doesNotMatch(actions, /repeatPolicy: "always"/, `${scenario} should use only once or per-turn`);
+  }
+  const [keyperson, stakeholder] = await Promise.all([
+    readFile(new URL("src/data/scenarios/keyperson-exit-action-space.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/stakeholder-conflict-action-space.ts", root), "utf8"),
+  ]);
+  assert.match(keyperson, /id: "kp_report_formalize"[^\n]+repeatPolicy: "once"/);
+  assert.match(stakeholder, /id: "scf_report_record"[^\n]+repeatPolicy: "once"/);
 });
 
 test("keeps Action codes internal and out of player-facing components", async () => {

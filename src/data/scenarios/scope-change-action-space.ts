@@ -36,6 +36,7 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
     result: "高橋は追加要件の詳細をまだ把握しておらず、まず佐藤と整理してほしいと回答しました。",
     whyThisResult: "高橋は決裁者ですが、序盤では現場要望の整理前だったため、具体的な判断材料を持っていませんでした。",
     outcomesByTurn: {
+      2: { grantsInformation: ["success_criteria"], result: "高橋は要望の背景と実装影響を確認してから、成功条件を整理したいと回答しました。", whyThisResult: "調査が進み、決裁者が確認すべき論点が見え始めたためです。" },
       3: { grantsInformation: ["success_criteria"], result: "高橋は全機能より、既存顧客へ障害を起こさないことと説明可能性を重視していました。", whyThisResult: "影響が具体化した段階で決裁者へ聞いたため、事業判断の基準を確認できました。" },
       4: { grantsInformation: ["success_criteria"], result: "高橋は品質事故を避けつつ、契約更新に必要な価値を残すことを求めました。", whyThisResult: "品質懸念が表面化した後なので、決裁者の優先順位も具体的になっていました。" },
       5: { grantsInformation: ["success_criteria"], result: "高橋は機能数より、合意した価値を安全に届けることを成功条件にしました。", whyThisResult: "最終局面で判断基準を再確認し、リリース条件を明文化できました。" },
@@ -80,6 +81,7 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
     guidedHint: "『実装日数』だけでなく完了までの全作業を見ます。", availableFromTurn: 1, repeatPolicy: "per-turn",
     grantsInformation: ["implementation_impact"], result: "実装後のAPI対応と回帰テストを含めると、残作業は7営業日相当でした。",
     whyThisResult: "作業を工程別に分けたため、見かけの2日と完了までの7日の差が分かりました。",
+    outcomesByTurn: { 2: { grantsInformation: ["implementation_impact"], result: "実装とテストの残作業を分けると、見かけより余裕が少ないと分かりました。", whyThisResult: "初期調査後に工程別の残量を再確認したためです。" }, 3: { grantsInformation: ["implementation_impact"], result: "実装は進みましたが、レビューと回帰テストの残作業が納期を左右すると分かりました。", whyThisResult: "作業が進んだ時点で再確認し、残作業の内訳が変化したためです。" }, 4: { grantsInformation: ["implementation_impact"], result: "テスト開始が近づき、優先範囲を絞らないと品質確認が間に合わないと分かりました。", whyThisResult: "終盤の工程状況を再確認したためです。" }, 5: { grantsInformation: ["implementation_impact"], result: "最終判断前の残作業は、優先範囲の確認と品質確認に集約されていると分かりました。", whyThisResult: "リリース直前の状態を再確認し、残作業の意味を判断に反映できたためです。" } },
   },
   {
     id: "schedule_critical_path", title: "クリティカルパスを確認する", description: "どの遅れがリリース全体へ波及するかを確認します。", category: "schedule",
@@ -93,12 +95,14 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
     guidedHint: "短納期で最初に削られやすい工程を考えます。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: ["team_load"],
     setsFlags: { qualityRiskReviewed: true }, result: "追加対応を載せると、レビューと回帰テストの時間が先に圧迫されると分かりました。",
     whyThisResult: "品質を数値回復させるのではなく、どの工程で問題が起きるかを先に言語化しました。",
+    outcomesByTurn: { 2: { grantsInformation: ["team_load"], result: "追加作業の見込みが増え、レビュー時間が圧迫され始めていると分かりました。", whyThisResult: "初期の影響がチームへ現れ始めた時点で再評価したためです。" }, 3: { grantsInformation: ["team_load"], result: "レビュー待ちが積み上がり、追加対応を続けるほど品質リスクが増える状態になりました。", whyThisResult: "追加作業の影響が表面化した時点で再評価したためです。" }, 4: { grantsInformation: ["team_load"], result: "テスト準備と修正が重なり、チームの品質確認余力がさらに減りました。", whyThisResult: "終盤の作業切替を踏まえて再評価したためです。" }, 5: { grantsInformation: ["team_load"], result: "最終判断を遅らせること自体が、回帰テストの余力を削るリスクになりました。", whyThisResult: "終盤のリスクを再整理し、時間経過による変化を確認したためです。" } },
   },
   {
     id: "risk_uncertainty", title: "追加要件の不確実性を整理する", description: "背景・影響・決裁者のうち、未確認の前提を整理します。", category: "risk",
     guidedHint: "分からないこと自体をリスクとして扱います。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { uncertaintyReviewed: true }, result: "要望背景、実装影響、最終判断者の確認状況を分けて整理しました。",
     whyThisResult: "リスク整理は問題を消す行動ではなく、次に確認すべき不確実性を明確にする行動です。",
+    outcomesByTurn: { 2: { result: "要望背景と実装影響の未確認が、早期判断の主な不確実性だと整理しました。", whyThisResult: "序盤の情報不足を再確認したためです。" }, 3: { result: "背景と実装影響は確認が進み、残る不確実性は品質条件と合意範囲に絞られました。", whyThisResult: "取得済み情報を踏まえて再整理したため、未確認事項の意味が変化しました。" }, 4: { result: "品質条件と提供範囲の合意が、後続判断に影響する不確実性として残りました。", whyThisResult: "判断案が具体化した段階で未確認事項を見直したためです。" }, 5: { result: "最終判断前には、未確定の合意条件と判断期限が主なリスクとして残りました。", whyThisResult: "終盤の状況に合わせて、不確実性の優先順位を見直したためです。" } },
   },
   {
     id: "scope_must_have", title: "必須条件を整理する", description: "要求を価値単位に分け、今回不可欠な範囲を整理します。", category: "scope",
@@ -118,29 +122,34 @@ export const scopeChangeActionSpace: ScenarioAction[] = [
     guidedHint: "進捗率だけでは見えない負荷を確認します。", availableFromTurn: 1, repeatPolicy: "per-turn",
     grantsInformation: ["team_load"], result: "追加対応をそのまま載せるとレビュー時間が削られる状態だと分かりました。",
     whyThisResult: "チームへ直接確認したため、計画表に出ない負荷を把握できました。",
+    outcomesByTurn: { 2: { grantsInformation: ["team_load"], result: "追加要件の確認作業で、実装担当の作業切替が増え始めていると分かりました。", whyThisResult: "初期の調査負荷を再確認したためです。" }, 3: { grantsInformation: ["team_load"], result: "作業切替が増え、レビュー待ちがチーム全体の負荷になっていると分かりました。", whyThisResult: "調査が進んだ後に再確認し、負荷の原因が具体化したためです。" }, 4: { grantsInformation: ["team_load"], result: "テスト前の修正と判断待ちが重なり、担当者の余力がさらに減っていました。", whyThisResult: "終盤の状況変化を確認したためです。" }, 5: { grantsInformation: ["team_load"], result: "優先範囲が決まれば集中できる一方、未決定のままでは負荷がさらに増えると分かりました。", whyThisResult: "最終判断前のチーム状態を確認したためです。" } },
   },
   {
     id: "team_test_capacity", title: "レビュー・テスト余力を確認する", description: "品質を守るために残っている時間と担当者を確認します。", category: "team",
     guidedHint: "機能を作れることと、安全に出せることは別です。", availableFromTurn: 1, repeatPolicy: "per-turn",
     grantsInformation: ["team_load"], setsFlags: { testCapacityReviewed: true }, result: "実装を増やすと、レビューと回帰テストの余力が不足すると分かりました。",
     whyThisResult: "実装人数ではなく、品質確認を完了できる体制を確認したためです。",
+    outcomesByTurn: { 2: { grantsInformation: ["team_load"], result: "追加要件の影響調査で、レビュー計画に余裕が少ないと分かりました。", whyThisResult: "初期の作業見通しを踏まえて確認したためです。" }, 3: { grantsInformation: ["team_load"], result: "レビュー待ちが増え、回帰テストの開始余力がさらに限られていると分かりました。", whyThisResult: "作業の影響が蓄積した後に再確認したためです。" }, 4: { grantsInformation: ["team_load"], result: "テスト開始条件を守るには、追加対応の範囲を絞る必要があると分かりました。", whyThisResult: "終盤の品質確認余力を見直したためです。" }, 5: { grantsInformation: ["team_load"], result: "品質条件を守るには、優先範囲を絞ってテスト余力を確保する必要があると分かりました。", whyThisResult: "最終方針に合わせてテスト余力を見直したためです。" } },
   },
   {
     id: "report_customer", title: "顧客担当へ状況を共有する", description: "分かっている影響と未確定事項を佐藤へ共有します。", category: "report", stakeholderId: "sato",
     guidedHint: "確認途中であることも含め、期待値をそろえます。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { impactShared: true }, result: "佐藤へ、追加可否は影響確認後に回答すると共有しました。",
     whyThisResult: "結論前でも確認状況を透明にしたため、即答せず期待値を調整できました。",
+    outcomesByTurn: { 2: { result: "佐藤へ、調査中の論点と回答予定時期を共有し、早期の期待値をそろえました。", whyThisResult: "初期の不確実性を伝えたためです。" }, 3: { result: "佐藤へ、実装影響と確認済みの優先条件を共有し、回答待ちの論点を絞りました。", whyThisResult: "調査結果が増えた段階で共有内容を更新したためです。" }, 4: { result: "佐藤へ、品質条件と候補範囲を共有し、最終案の調整余地を確認しました。", whyThisResult: "具体的な案を比較できる段階で共有したためです。" }, 5: { result: "佐藤へ、合意した提供範囲と残る確認事項を共有し、期待値を最終調整しました。", whyThisResult: "最終方針が見えた段階で共有したためです。" } },
   },
   {
     id: "report_decision_owner", title: "顧客決裁者へ状況を共有する", description: "高橋へ、判断が必要な論点と影響を共有します。", category: "report", stakeholderId: "takahashi",
     guidedHint: "詳細がない段階では、共有しても判断を得られない可能性があります。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { decisionOwnerContacted: true }, result: "高橋へ論点を共有しましたが、影響が未整理のため判断は保留になりました。",
     whyThisResult: "決裁者を巻き込むことは重要ですが、判断材料がなければ意思決定までは進みません。",
+    outcomesByTurn: { 2: { result: "高橋へ調査中の論点を共有し、判断には追加の影響確認が必要だと認識をそろえました。", whyThisResult: "序盤の情報不足を透明に共有したためです。" }, 3: { result: "高橋へ影響と選択肢の比較を共有し、判断に必要な不足材料が明確になりました。", whyThisResult: "調査済みの事実を添えて共有したためです。" }, 4: { result: "高橋へ品質条件と候補案を共有し、比較のうえで判断できる状態を作りました。", whyThisResult: "選択肢が具体化した段階で共有したためです。" }, 5: { result: "高橋へ最終案と合意条件を共有し、判断内容を記録できる状態になりました。", whyThisResult: "最終局面で必要な情報と選択肢をまとめて共有したためです。" } },
   },
   {
     id: "report_team", title: "開発チームへ状況を共有する", description: "追加要件が未確定であることと、着手条件を共有します。", category: "report", stakeholderId: "tanaka",
     guidedHint: "正式判断前の先走った着手を防ぎます。", availableFromTurn: 1, repeatPolicy: "per-turn", grantsInformation: [],
     setsFlags: { teamBriefed: true }, result: "開発チームは、正式判断まで影響調査に留める方針を共有しました。",
     whyThisResult: "未確定事項と着手条件を分けて伝えたため、調査と実装着手の混同を防げました。",
+    outcomesByTurn: { 2: { result: "開発チームへ調査中であることを共有し、先行着手せず影響確認を進める方針をそろえました。", whyThisResult: "未確定の段階で着手条件を共有したためです。" }, 3: { result: "開発チームへ、確認済みの影響と優先範囲を共有し、準備作業の着手条件を更新しました。", whyThisResult: "調査結果を踏まえて共有内容を具体化したためです。" }, 4: { result: "開発チームへ品質条件と候補範囲を共有し、テスト準備の優先順位をそろえました。", whyThisResult: "方針候補に合わせて共有内容を更新したためです。" }, 5: { result: "開発チームへ、確定した範囲と品質条件を共有し、実装・テストの優先順位をそろえました。", whyThisResult: "最終判断に合わせて着手条件を確定したためです。" } },
   },
 ];

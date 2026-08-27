@@ -22,7 +22,7 @@ import { SituationStep } from "./SituationStep";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder, type StakeholderChatMessage } from "./StakeholderChatDrawer";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, formatTurnLabel, getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
-import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, resolveScenarioActionOutcome } from "@/src/data/statefulScenarioLogic.mjs";
+import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, hasScenarioActionBeenUsed, isScenarioActionComplete, resolveScenarioActionOutcome } from "@/src/data/statefulScenarioLogic.mjs";
 import { PlayNavigationMenu } from "./PlayNavigationMenu";
 import { DecisionAnalysisTimeline } from "./DecisionAnalysisTimeline";
 import { deleteSave, writePlaySession, type SavedPlaySession } from "../lib/playSession";
@@ -165,7 +165,8 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
 
   const getActionAvailability = (action: ScenarioAction) => {
     if (investigationsLeft <= 0) return { disabled: true, label: "調査枠を使用済み" };
-    if (usedActionKeys.includes(getScenarioActionUsageKey(action, turnIndex + 1))) return { disabled: true, label: action.repeatPolicy === "per-turn" ? "このターンで確認済み" : "確認済み" };
+    if (isScenarioActionComplete(action, turnIndex + 1, informationIds, flags)) return { disabled: true, label: "確認済み" };
+    if (hasScenarioActionBeenUsed(action, turnIndex + 1, usedActionKeys)) return { disabled: true, label: action.repeatPolicy === "per-turn" ? "このターンで確認済み" : "確認済み" };
     return { disabled: false };
   };
 

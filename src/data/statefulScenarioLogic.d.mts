@@ -24,3 +24,11 @@ export function resolveScenarioActionOutcome(
 };
 
 export function getScenarioActionUsageKey(action: Pick<ScenarioAction, "id" | "repeatPolicy">, turn: number): string;
+export function hasScenarioActionBeenUsed(action: Pick<ScenarioAction, "id" | "repeatPolicy">, turn: number, usedKeys: Iterable<string>): boolean;
+
+export function isScenarioActionComplete(
+  action: ScenarioAction,
+  turn: number,
+  informationIds: Iterable<string>,
+  flags: Record<string, boolean | number | string>,
+): boolean;

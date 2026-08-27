@@ -62,3 +62,36 @@ export function resolveScenarioActionOutcome(action, turn, informationIds, flags
 export function getScenarioActionUsageKey(action, turn) {
   return action.repeatPolicy === "per-turn" ? `${turn}:${action.id}` : `once:${action.id}`;
 }
+
+/** @param {{id:string, repeatPolicy?:string}} action @param {number} turn @param {Iterable<string>} usedKeys */
+export function hasScenarioActionBeenUsed(action, turn, usedKeys) {
+  const keys = new Set(usedKeys);
+  const currentKey = getScenarioActionUsageKey(action, turn);
+  if (keys.has(currentKey)) return true;
+  if (action.repeatPolicy === "per-turn") return false;
+  return [...keys].some((key) => key.endsWith(`:${action.id}`));
+}
+
+/**
+ * 前提を満たした条件付きActionが、その成果をすでに獲得済みか判定する。
+ * per-turnでも同じ分析結果しか返せない状態では再実行させない。
+ * @param {Record<string, any>} action
+ * @param {number} turn
+ * @param {Iterable<string>} informationIds
+ * @param {Record<string, boolean|number|string>} flags
+ */
+export function isScenarioActionComplete(action, turn, informationIds, flags) {
+  const information = new Set(informationIds);
+  const conditional = (action.conditionalOutcomes ?? []).find((outcome) =>
+    (!outcome.turns || outcome.turns.includes(turn)) &&
+    (outcome.requiresFlags ?? []).every((id) => Boolean(flags[id])) &&
+    (outcome.requiresInformation ?? []).every((id) => information.has(id))
+  );
+  if (!conditional) return false;
+  const grantedInformation = conditional.grantsInformation ?? action.grantsInformation ?? [];
+  const setFlags = conditional.setsFlags ?? {};
+  const hasPersistentOutcome = grantedInformation.length > 0 || Object.keys(setFlags).length > 0;
+  return hasPersistentOutcome &&
+    grantedInformation.every((id) => information.has(id)) &&
+    Object.entries(setFlags).every(([id, value]) => flags[id] === value);
+}
