@@ -152,6 +152,12 @@ test("keeps Action codes internal and out of player-facing components", async ()
   assert.doesNotMatch(playerFacing, />\s*(?:STK|SCH|RSK|SCP|TEM|COM)\s*</);
 });
 
+test("keeps the five release choices readable without shrinking descriptions to one character", async () => {
+  const styles = await readFile(new URL("app/globals.css", root), "utf8");
+  assert.match(styles, /\.scenario-choice-dialog \.decision-choice-list\.release-list button \{ grid-template-columns:minmax\(0,1fr\); \}/);
+  assert.match(styles, /\.scenario-choice-dialog \.decision-choice-list\.release-list button span,\.scenario-choice-dialog \.decision-choice-list\.release-list button b \{ grid-column:1\/-1; min-width:0; \}/);
+});
+
 test("renders the stateful scenario through the canonical LIGHT flow", async () => {
   const [runner, cockpit, result, finalResult, accessibleDialog, chat, intro] = await Promise.all([
     readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
