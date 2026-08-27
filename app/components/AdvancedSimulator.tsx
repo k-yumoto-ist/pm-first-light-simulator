@@ -1,0 +1,197 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { scenarioById } from "@/src/data/scenarios";
+import { pmbokDomains } from "@/src/data/pmbokDomains";
+import { pmBehaviorStandards } from "@/src/data/pmBehaviorStandards";
+import type { BehaviorStandardEvidence, Difficulty, HiddenState, ProjectState, ScenarioChoice } from "@/src/data/types";
+import type { ScenarioMode } from "@/src/data/statefulScenarioTypes";
+import { getStatefulProjectScenario } from "@/src/data/scenarios/stateful-project-scenarios";
+import { getStatefulTrainingScenario } from "@/src/data/training/training-scenarios";
+import StatefulScenarioRunner from "./StatefulScenarioRunner";
+import { modeThemes, modeThemeStyle } from "../data/modeThemes";
+import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
+import { getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
+import type { SavedPlaySession } from "../lib/playSession";
+
+type Phase = "briefing" | "situation" | "decision" | "result" | "final";
+
+type DecisionRecord = {
+  eventTitle: string;
+  choiceTitle: string;
+  feedback: ScenarioChoice["feedback"];
+  before: ProjectState;
+  after: ProjectState;
+  evidence: BehaviorStandardEvidence[];
+  consequence?: string;
+};
+
+
+function clamp(value: number) { return Math.max(0, Math.min(100, value)); }
+function applyState<T extends ProjectState | HiddenState>(current: T, effects: Partial<T>): T {
+  const next = { ...current } as T;
+  for (const key of Object.keys(effects) as Array<keyof T>) {
+    const value = effects[key];
+    if (typeof value === "number" && typeof current[key] === "number") {
+      next[key] = clamp((current[key] as number) + value) as T[keyof T];
+    } else if (value !== undefined) next[key] = value as T[keyof T];
+  }
+  return next;
+}
+
+function outcomeTone(key: keyof ProjectState, value: number): OutcomeSummaryItem["tone"] {
+  return healthStatusTones[getMetricHealthStatus(key, value)];
+}
+
+function changeSymbol(key: keyof ProjectState, delta: number) {
+  if (!delta) return "→";
+  const favorable = key === "riskExposure" ? delta < 0 : delta > 0;
+  return favorable ? "↑" : "↓";
+}
+
+export default function AdvancedSimulator({ scenarioId, difficulty, mode, onExit, onExitToHome, resumeSession }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: (saved: boolean) => void; onExitToHome: (saved: boolean) => void; resumeSession?: SavedPlaySession }) {
+  const theme = mode === "project" ? modeThemes.project : modeThemes.training;
+  const statefulScenario = mode === "project" ? getStatefulProjectScenario(scenarioId) : getStatefulTrainingScenario(scenarioId);
+  if (statefulScenario) {
+    return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><StatefulScenarioRunner scenario={statefulScenario} difficulty={difficulty} resumeSession={resumeSession} onExit={onExit} onExitToHome={onExitToHome} /></div>;
+  }
+  return <div className={`mode-simulator ${theme.className}`} style={modeThemeStyle(mode)}><LegacyAdvancedSimulator scenarioId={scenarioId} difficulty={difficulty} mode={mode} onExit={() => onExit(false)} /></div>;
+}
+
+function LegacyAdvancedSimulator({ scenarioId, difficulty, mode, onExit }: { scenarioId: string; difficulty: Difficulty; mode: ScenarioMode; onExit: () => void }) {
+  const scenario = scenarioById[scenarioId];
+  const [phase, setPhase] = useState<Phase>("briefing");
+  const [eventIndex, setEventIndex] = useState(0);
+  const [project, setProject] = useState<ProjectState>(scenario.initialState);
+  const [hidden, setHidden] = useState<HiddenState>(scenario.initialHiddenState);
+  const [selected, setSelected] = useState<ScenarioChoice>();
+  const [records, setRecords] = useState<DecisionRecord[]>([]);
+  const event = scenario.events[eventIndex];
+  const record = records.at(-1);
+
+  const visibleMetrics = useMemo(() => Object.entries(project) as Array<[keyof ProjectState, number]>, [project]);
+
+  const execute = () => {
+    if (!selected) return;
+    const afterChoice = applyState(project, selected.effects);
+    const hiddenAfterChoice = applyState(hidden, selected.hiddenEffects);
+    const consequence = scenario.resolveConsequence?.(hiddenAfterChoice, eventIndex) ?? null;
+    const after = consequence ? applyState(afterChoice, consequence.effects) : afterChoice;
+    const nextHidden = consequence?.hiddenEffects ? applyState(hiddenAfterChoice, consequence.hiddenEffects) : hiddenAfterChoice;
+    setProject(after);
+    setHidden(nextHidden);
+    setRecords((current) => [...current, {
+      eventTitle: event.title,
+      choiceTitle: selected.title,
+      feedback: selected.feedback,
+      before: project,
+      after,
+      evidence: selected.behaviorEvidence,
+      consequence: consequence?.whatHappened,
+    }]);
+    setSelected(undefined);
+    setPhase("result");
+  };
+
+  const continueAfterResult = () => {
+    if (eventIndex >= scenario.events.length - 1) setPhase("final");
+    else { setEventIndex((value) => value + 1); setPhase("situation"); }
+  };
+
+  if (phase === "final") {
+    const evidence = records.flatMap((item) => item.evidence);
+    const evidenceWeights = new Map<string, number>();
+    evidence.forEach((item) => evidenceWeights.set(item.behavior, (evidenceWeights.get(item.behavior) ?? 0) + item.weight));
+    const seen = [...evidenceWeights.entries()].sort((a, b) => b[1] - a[1]);
+    const seenTags = new Set(seen.map(([tag]) => tag));
+    const nextTags = scenario.opportunityBehaviorTags.filter((tag) => !seenTags.has(tag)).slice(0, 4);
+    const otherDomains = (Object.keys(pmbokDomains) as Array<keyof typeof pmbokDomains>)
+      .filter((domain) => domain !== scenario.primaryDomain && !scenario.relatedDomains.includes(domain));
+    const outcomeValues = visibleMetrics.map(([key, value]) => key === "riskExposure" ? 100 - value : value);
+    const outcomeScore = Math.round(outcomeValues.reduce((sum, value) => sum + value, 0) / outcomeValues.length);
+    const evidenceTotal = [...evidenceWeights.values()].reduce((sum, value) => sum + value, 0);
+    const processScore = Math.min(100, Math.round(evidenceTotal / Math.max(1, records.length * 4) * 100));
+    const totalScore = Math.round(outcomeScore * .6 + processScore * .4);
+    const styleTag = seen[0]?.[0] ?? "";
+    const style: PMStyle = styleTag.includes("risk") || styleTag.includes("contingency")
+      ? { code: "RISK CONTROLLER", description: "不確実性を早めに捉え、対応の選択肢を持とうとする判断が多く見られました。" }
+      : styleTag.includes("stakeholder") || styleTag.includes("consensus") || styleTag.includes("expectation")
+        ? { code: "CONSENSUS BUILDER", description: "関係者の期待を整理し、合意できる着地点を探る判断が多く見られました。" }
+        : styleTag.includes("team") || styleTag.includes("knowledge")
+          ? { code: "TEAM PROTECTOR", description: "チームの継続性や知識を守る判断が多く見られました。" }
+          : styleTag.includes("schedule") || styleTag.includes("critical_path") || styleTag.includes("recovery")
+            ? { code: "DELIVERY FIRST", description: "期限と実現可能性を具体化し、着地までの道筋を守る判断が多く見られました。" }
+            : { code: "VALUE BALANCER", description: "価値・品質・納期のバランスから着地点を探る判断が多く見られました。" };
+
+    const outcomeSummary: OutcomeSummaryItem[] = [
+      { label: "シナリオ", status: "完了", tone: "positive" },
+      { label: "納期", status: getMetricStatusLabel("schedule", project.schedule), tone: outcomeTone("schedule", project.schedule) },
+      { label: "品質", status: getMetricStatusLabel("quality", project.quality), tone: outcomeTone("quality", project.quality) },
+      { label: "顧客信頼", status: getMetricStatusLabel("trust", project.trust), tone: outcomeTone("trust", project.trust) },
+      { label: "チーム状態", status: getMetricStatusLabel("teamHealth", project.teamHealth), tone: outcomeTone("teamHealth", project.teamHealth) },
+    ];
+    return <FinalResultFramework mode={mode} title={`${scenario.title} — プロジェクトの着地点`} score={totalScore} style={style} summary="最終状態と、判断の過程で確認できたPM行動を合わせたプロジェクト運営全体の指標です。" outcomeSummary={outcomeSummary} metrics={visibleMetrics.slice(0, 5).map(([key, value]) => ({ label: metricLabels[key], value: getMetricDisplayValue(key, value), status: getMetricStatusLabel(key, value) }))} breakdown={[{ label: "プロジェクト成果", score: outcomeScore, weight: "60%" }, { label: "判断プロセス", score: processScore, weight: "40%" }]} actions={<><button className="v2-secondary" onClick={onExit}>別のシナリオを選ぶ</button><button className="primary" onClick={() => window.location.reload()}>ライトモードへ戻る</button></>}>
+      <FinalResultSection eyebrow="あなたの判断" title="あなたが選んだ判断"><div className="v2-decision-timeline">{records.map((item, index) => <article key={`${item.eventTitle}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><div><span>{item.eventTitle}</span><h3>{item.choiceTitle}</h3><p>{item.feedback.whatHappened}</p>{item.consequence ? <small>{item.consequence}</small> : null}</div></article>)}</div></FinalResultSection>
+      <FinalResultSection eyebrow="PMとしての振り返り" title="今回のプレイで見られたPM行動"><div className="v2-style-columns"><div><h3>今回見られた行動</h3><ul>{seen.length ? seen.map(([tag, weight]) => <li key={tag}><strong>{pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].label}</strong><span>{weight > 1 ? "複数の判断で確認されました" : pmBehaviorStandards[tag as keyof typeof pmBehaviorStandards].actions[0]}</span></li>) : <li><span>今回の選択から明確に確認できる行動はありませんでした。</span></li>}</ul></div><div><h3>さらに試したい行動</h3><ul>{nextTags.length ? nextTags.map(tag => <li key={tag}><strong>{pmBehaviorStandards[tag].label}</strong><span>{pmBehaviorStandards[tag].actions[0]}</span></li>) : <li><span>別の選択肢も試し、結果の違いを確かめてみましょう。</span></li>}</ul></div></div><p className="v2-not-observed">{otherDomains.map(domain => pmbokDomains[domain].label).join(" / ")} は、今回のシナリオでは確認する機会がありませんでした。</p></FinalResultSection>
+      <FinalResultSection eyebrow="PMBOKで振り返る" title="今回、判断する機会があった領域"><div className="stateful-domain-review">{[scenario.primaryDomain, ...scenario.relatedDomains].map(domain => <div key={domain}><strong>{pmbokDomains[domain].label}</strong><p>{pmbokDomains[domain].description}</p></div>)}</div></FinalResultSection>
+    </FinalResultFramework>;
+  }
+
+  return (
+    <main className="v2-sim-shell">
+      <header className="v2-sim-header">
+        <div><strong>PROJECT: FIRST LIGHT</strong><span>{scenario.title}</span><small className="mode-badge">{modeThemes[mode].label}</small></div>
+        <nav aria-label="進行状況"><i className={phase === "briefing" || phase === "situation" ? "active" : "done"}>1 状況</i><i className={phase === "decision" ? "active" : phase === "result" ? "done" : ""}>2 判断</i><i className={phase === "result" ? "active" : ""}>3 結果</i></nav>
+        <button onClick={onExit}>終了</button>
+      </header>
+
+      {(phase === "briefing" || phase === "situation") && (
+        <section className="v2-situation-view">
+          <div className="v2-turn-label">{phase === "briefing" ? "プロジェクト概要" : `状況 ${eventIndex + 1} / ${scenario.events.length}`}</div>
+          <h1>{phase === "briefing" ? scenario.title : event.title}</h1>
+          <p className="v2-situation-copy">{phase === "briefing" ? scenario.briefing.context : event.situation}</p>
+          <div className="v2-situation-grid">
+            <div><span>PMとして目指すこと</span><p>{phase === "briefing" ? scenario.briefing.objective : event.decisionPrompt}</p></div>
+            <div><span>まだ確かめたいこと</span><ul>{scenario.briefing.initialUnknowns.map((item) => <li key={item}>🔒 {difficulty === "challenge" && phase !== "briefing" ? "情報が不足しています" : item}</li>)}</ul></div>
+          </div>
+          <button className="primary large" onClick={() => setPhase(phase === "briefing" ? "situation" : "decision")}>{phase === "briefing" ? "案件を引き受ける" : "PMとして判断する"}<span>→</span></button>
+        </section>
+      )}
+
+      {phase === "decision" && (
+        <section className="v2-decision-view">
+          <div className="v2-decision-top"><div><p className="v2-kicker">次の行動</p><h1>PMとして、どう判断しますか？</h1><span>{event.title}</span></div><div className="v2-compact-metrics">{visibleMetrics.slice(0, 5).map(([key, value]) => <span key={key}>{metricLabels[key]} <b>{getMetricStatusLabel(key, value)}</b></span>)}</div></div>
+          {difficulty === "guided" && <aside className="v2-guidance"><strong>見るべきポイント</strong><p>{event.decisionPrompt} その場の解決だけでなく、後続への影響も考えてみましょう。</p></aside>}
+          <div className="v2-choice-grid">{event.choices.map((choice, index) => <button key={choice.id} onClick={() => setSelected(choice)}><span>{String(index + 1).padStart(2, "0")}</span><h2>{choice.title}</h2>{difficulty !== "challenge" && <p>{choice.description}</p>}<b>詳しく確認 →</b></button>)}</div>
+          <button className="v2-text-button" onClick={() => setPhase("situation")}>← 状況を読み直す</button>
+        </section>
+      )}
+
+      {selected && (
+        <div className="v2-modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setSelected(undefined)}>
+          <section className="v2-choice-modal" role="dialog" aria-modal="true" aria-labelledby="choice-title">
+            <button className="v2-modal-close" aria-label="閉じる" onClick={() => setSelected(undefined)}>×</button>
+            <p className="v2-kicker">判断の確認</p><h2 id="choice-title">{selected.title}</h2><p>{selected.description}</p>
+            <div><span>この判断で重視すること</span><p>{difficulty === "guided" ? selected.feedback.pmPoint : "状況に対する一つの判断として実行します。結果は実行後に確認できます。"}</p></div>
+            {difficulty === "guided" && <div className="v2-direction-list"><span>想定される影響</span>{Object.entries(selected.effects).map(([key, delta]) => <b key={key}>{metricLabels[key as keyof ProjectState]} {changeSymbol(key as keyof ProjectState, delta as number)}</b>)}</div>}
+            <p className="v2-decision-note">実行すると、この状況での判断が確定します。</p>
+            <div className="v2-modal-actions"><button className="v2-secondary" onClick={() => setSelected(undefined)}>戻る</button><button className="primary" onClick={execute}>この判断を実行する</button></div>
+          </section>
+        </div>
+      )}
+
+      {phase === "result" && record && (
+        <section className="v2-result-view">
+          <p className="v2-kicker">行動結果</p><h1>{record.choiceTitle}</h1>
+          <div className="v2-result-sections">
+            <article><span>起きたこと</span><p>{record.feedback.whatHappened}</p>{record.consequence && <small>{record.consequence}</small>}</article>
+            <article><span>プロジェクトの変化</span><div className="v2-change-grid">{(Object.keys(record.after) as Array<keyof ProjectState>).map((key) => { const delta = record.after[key] - record.before[key]; return delta !== 0 ? <div key={key}><b>{metricLabels[key]}</b><strong>{getMetricStatusLabel(key, record.before[key])} <i>→</i> {getMetricStatusLabel(key, record.after[key])}</strong><em>{changeSymbol(key, delta)}</em></div> : null; })}</div></article>
+            <article><span>なぜこうなったか</span><p>{record.feedback.why}</p></article>
+            <article className="v2-pm-point"><span>PMとしてのポイント</span><p>{record.feedback.pmPoint}</p></article>
+          </div>
+          <button className="primary large" onClick={continueAfterResult}>{eventIndex >= scenario.events.length - 1 ? "プレイを振り返る" : "次の状況へ"}<span>→</span></button>
+        </section>
+      )}
+    </main>
+  );
+}

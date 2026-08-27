@@ -1,0 +1,62 @@
+import type { ScenarioAction, ScenarioDecision, StatefulScenarioDefinition } from "../statefulScenarioTypes";
+import { statefulActionCategories } from "../scenarios/stateful-action-categories";
+
+const action = (value: Partial<ScenarioAction> & Pick<ScenarioAction, "id" | "title" | "category" | "result">): ScenarioAction => ({ description: "日程の構造を確かめる確認です。", availableFromTurn: 1, grantsInformation: [], repeatPolicy: value.conditionalOutcomes ? "per-turn" : "once", whyThisResult: "担当する情報源へ確認したためです。", ...value });
+const decisionEvidence: Partial<Record<string, ScenarioDecision["evidence"]>> = {
+  sch_map: [{ areaId: "schedule", elementId: "impact", behavior: "impact_analysis", weight: 2 }, { areaId: "schedule", elementId: "critical-path", behavior: "critical_path_analysis", weight: 2 }],
+  sch_parallel: [{ areaId: "schedule", elementId: "recovery", behavior: "recovery_planning", weight: 2 }, { areaId: "resources", elementId: "reallocation", behavior: "resource_reallocation", weight: 2 }],
+  sch_replan: [{ areaId: "schedule", elementId: "replan", behavior: "recovery_planning", weight: 2 }, { areaId: "stakeholders", elementId: "agreement", behavior: "consensus_building", weight: 2 }],
+};
+const decision = (value: Partial<ScenarioDecision> & Pick<ScenarioDecision, "id" | "title" | "whatHappened" | "why" | "pmPoint" | "chainEffect">): ScenarioDecision => ({ description: "確認した事実をもとに判断します。", metricEffects: {}, evidence: decisionEvidence[value.id] ?? [], ...value });
+
+export const scheduleTraining: StatefulScenarioDefinition = {
+  id: "schedule-training", title: "どこが本当のボトルネックか？", description: "遅延の兆候から依存関係を見つけ、回復策と再計画を作る3ターンの練習です。", mode: "training", supportedDifficulties: ["guided", "standard", "challenge"], investigationBudget: { guided: 3, standard: 2, challenge: 2 }, primaryDomain: "schedule", relatedDomains: ["resources", "risk", "scope"],
+  initialMetrics: { schedule: 48, budget: 70, quality: 74, trust: 64, teamHealth: 68, businessValue: 70, riskExposure: 56, scopeStability: 72, stakeholderAlignment: 52 },
+  initialFlags: { causeKnown: false, criticalPathKnown: false, testFloorKnown: false, capacityKnown: false, recoveryPlan: false, parallelOption: false, replanAgreed: false, overtime: false },
+  intro: { emphasizedHeadline: "遅延の構造を見て回復するPMです。", description: "API連携が遅れています。日数を追うだけでなく、どの作業が本当に全体を止めているかを確認してください。", briefTitle: "顧客ポータル連携", phase: "リリース3週間前", team: "PM・開発・QA・顧客", issueLabel: "現在の課題", issue: "API連携に5営業日の遅延", requestLabel: "顧客側の制約", request: "予定日の利用開始", risk: "テスト開始と品質判定への波及" },
+  stakeholders: [{ id: "tanaka", name: "田中", role: "開発リーダー", priority: "原因を解消し品質を守りたい", avatar: "田" }, { id: "qa", name: "山本", role: "QAリーダー", priority: "安全なテスト条件を守りたい", avatar: "山" }, { id: "mori", name: "森", role: "営業責任者", priority: "顧客への約束を守りたい", avatar: "森" }, { id: "sato", name: "佐藤", role: "顧客担当者", priority: "利用開始日を守りたい", avatar: "佐" }], actionCategories: statefulActionCategories,
+  information: [
+    { id: "delay_cause", label: "遅延原因", detail: "API仕様差分と認証試験のやり直しが遅延の主因です。", source: "田中への確認" },
+    { id: "dependencies", label: "後続依存", detail: "総合テストとリリース判定がAPI完了を待っています。", source: "田中への確認" },
+    { id: "critical_path", label: "クリティカルパス", detail: "認証・総合テスト・判定が最長の依存関係です。", source: "スケジュール点検" },
+    { id: "quality_floor", label: "品質下限", detail: "認証回帰テストは短縮できません。", source: "QAへの確認" },
+    { id: "team_capacity", label: "チーム余力", detail: "画面テスト準備は支援できますが、開発とQAは高負荷です。", source: "チーム状況確認" },
+    { id: "parallel_work", label: "並行化作業", detail: "テストデータと画面テスト準備はAPIと並行できます。", source: "スケジュール整理" },
+    { id: "customer_deadline", label: "顧客期限", detail: "展示会前の利用開始が重要ですが、対象限定の余地があります。", source: "営業への確認" },
+    { id: "recovery_option", label: "回復案", detail: "並行化と対象限定を組み合わせると品質条件を守れます。", source: "回復策整理" },
+  ],
+  actions: [
+    action({ id: "sch_ask_tanaka_cause", title: "遅延原因を聞く", category: "hearing", stakeholderId: "tanaka", question: "API連携が遅れている直接の原因は何ですか？", grantsInformation: ["delay_cause"], result: "API仕様差分と認証試験のやり直しが遅延の主因だと分かりました。" }),
+    action({ id: "sch_ask_tanaka_dependencies", title: "後続への影響を聞く", category: "hearing", stakeholderId: "tanaka", question: "この遅れはどの作業を止めていますか？", grantsInformation: ["dependencies"], result: "総合テストとリリース判定がAPI連携を待っていると分かりました。" }),
+    action({ id: "sch_ask_mori_technical", title: "営業へ技術原因を聞く", category: "hearing", stakeholderId: "mori", question: "API認証の技術的な原因は何ですか？", grantsInformation: [], result: "森は顧客との約束は把握していますが、技術原因は分かりませんでした。", whyThisResult: "技術原因は開発へ、顧客の期限背景は営業へ聞く必要があります。" }),
+    action({ id: "sch_schedule_critical", title: "クリティカルパスを確認する", category: "schedule", grantsInformation: [], result: "原因と後続作業が不足しているため、クリティカルパスの仮説に留まりました。", conditionalOutcomes: [{ requiresInformation: ["delay_cause", "dependencies"], grantsInformation: ["critical_path"], result: "認証・総合テスト・判定がクリティカルパスだと特定しました。", whyThisResult: "原因と依存関係を確認してから経路を整理したためです。" }] }),
+    action({ id: "sch_schedule_remaining", title: "残作業を確認する", category: "schedule", grantsInformation: [], result: "実装だけでなくレビュー・テスト・判定まで残ると分かりました。" }),
+    action({ id: "sch_risk_test", title: "日程リスクを整理する", category: "risk", grantsInformation: [], result: "再試験・テスト開始条件・顧客説明の遅れをリスクとして整理しました。" }),
+    action({ id: "sch_risk_contingency", title: "切替条件を整理する", category: "risk", grantsInformation: [], result: "再試験が期限に間に合わない場合の代替案を考えました。" }),
+    action({ id: "sch_scope_parallel", title: "並行化案を作る", category: "scope", grantsInformation: [], result: "何が並行できるかの事実が不足し、一般的な案に留まりました。", conditionalOutcomes: [{ requiresInformation: ["critical_path", "quality_floor"], grantsInformation: ["parallel_work"], setsFlags: { parallelOption: true }, result: "テストデータと画面テスト準備を前倒しする案を作りました。", whyThisResult: "ボトルネックと品質下限を確認して、安全に並行化できる範囲を分けたためです。" }] }),
+    action({ id: "sch_scope_cut", title: "後続化できる範囲を整理する", category: "scope", grantsInformation: [], result: "顧客の期限背景がないため、何を後続化すべきかは決められませんでした。", conditionalOutcomes: [{ requiresInformation: ["customer_deadline", "quality_floor"], grantsInformation: ["recovery_option"], result: "展示会に必要な導線を残し、周辺機能を後続化する案を整理しました。", whyThisResult: "顧客の期限と品質下限を比較したためです。" }] }),
+    action({ id: "sch_team_capacity", title: "チーム余力を聞く", category: "team", stakeholderId: "tanaka", grantsInformation: ["team_capacity"], result: "画面テスト準備には支援できますが、開発とQAは高負荷だと分かりました。" }),
+    action({ id: "sch_team_overtime", title: "品質下限と残業の影響を聞く", category: "team", stakeholderId: "qa", grantsInformation: ["quality_floor"], result: "認証回帰テストは短縮できず、残業を増やすとレビュー余力も落ちると分かりました。" }),
+    action({ id: "sch_report_customer", title: "顧客へ早期共有する", category: "report", stakeholderId: "sato", grantsInformation: ["customer_deadline"], result: "展示会前の利用開始が重要で、対象を絞る余地があると分かりました。" }),
+    action({ id: "sch_report_options", title: "回復案を共有する", category: "report", stakeholderId: "mori", grantsInformation: [], result: "回復案を共有しましたが、品質条件の確認が不足しているため確定できません。" }),
+  ],
+  turns: [
+    { id: "detect", timing: "第1週 / 全3週", title: "5営業日の遅延", situation: "API連携が5営業日遅れています。担当者は追いつけるかもしれないと言いますが、後続への影響は見えていません。", thinkingPoint: "遅延日数だけでなく、原因と依存先を確認します。", visibleInformation: ["API連携が遅延", "予定日まで3週間"], newlyRelevantActionIds: ["sch_ask_tanaka_cause", "sch_schedule_critical"], decisions: [
+      decision({ id: "sch_wait", title: "しばらく様子を見る", metricEffects: { schedule: -5, trust: -2, riskExposure: 5 }, whatHappened: "確認を待つ間に、後続工程の余裕が減りました。", why: "原因と依存関係を早期に確認しなかったためです。", pmPoint: "遅延兆候では、回復策より先に構造を把握します。", chainEffect: "遅延の構造確認が後手に回る" }),
+      decision({ id: "sch_map", title: "原因と依存関係を確認する", requiresInformation: ["delay_cause", "dependencies"], metricEffects: { riskExposure: -4, stakeholderAlignment: 3 }, setsFlags: { causeKnown: true }, whatHappened: "原因と後続への影響を確認する時間を確保しました。", why: "日数ではなく工程のつながりを調べたためです。", pmPoint: "本当のボトルネックは、遅れている作業と同じとは限りません。", chainEffect: "回復対象を絞る材料を確保" }),
+      decision({ id: "sch_overtime", title: "残業で追いつくと約束する", irreversible: true, metricEffects: { schedule: 3, teamHealth: -8, quality: -4, riskExposure: 6 }, setsFlags: { overtime: true }, whatHappened: "予定日を守る姿勢は示せましたが、品質確認の余力を先に使いました。", why: "品質下限と回復可能な作業を確認する前に、時間で解決しようとしたためです。", pmPoint: "残業は納期だけでなく、翌工程の余力へ影響します。", chainEffect: "高負荷を前提とした回復を約束" }),
+    ] },
+    { id: "analyze", timing: "第2週 / 全3週", title: "テスト開始へ波及", situation: "API待ちで総合テストの一部が始められません。QAは品質条件を短縮できないと懸念しています。", thinkingPoint: "ボトルネックと品質下限をもとに並行化を検討します。", visibleInformation: ["総合テストの一部が待機", "QAが品質条件を懸念"], newlyRelevantActionIds: ["sch_scope_parallel", "sch_team_capacity"], delayedEffects: [{ requiresAll: ["overtime"], metricEffects: { teamHealth: -5, quality: -3, riskExposure: 4 }, text: "追加稼働で実装は進みましたが、レビュー余力が落ちました。", chainEffect: "短期挽回が品質確認を圧迫" }], decisions: [
+      decision({ id: "sch_compress", title: "テスト期間を短縮する", irreversible: true, metricEffects: { schedule: 4, quality: -8, riskExposure: 9 }, whatHappened: "日程は回復しましたが、品質確認を削りました。", why: "品質下限を確認せず、テスト時間を回復資源にしたためです。", pmPoint: "日程回復には、何のリスクを受け入れるかを明示します。", chainEffect: "日程回復と品質リスクが交換された" }),
+      decision({ id: "sch_parallel", title: "並行化と担当再配置を組み合わせる", requiresInformation: ["critical_path", "parallel_work", "team_capacity"], metricEffects: { schedule: 5, riskExposure: -5, teamHealth: 1 }, setsFlags: { recoveryPlan: true }, whatHappened: "依存しない準備を前倒しし、支援可能な作業を再配置しました。", why: "ボトルネック・並行化・余力を確認したためです。", pmPoint: "人数を増やす前に、作業の依存とスキルを分けて見ます。", chainEffect: "回復策が担当と期限を持つ" }),
+      decision({ id: "sch_add", title: "すぐに人員を追加する", irreversible: true, metricEffects: { schedule: 2, budget: -7, riskExposure: 2, teamHealth: -2 }, whatHappened: "人は増えましたが、立ち上がりと調整の時間が必要になりました。", why: "何を任せられるかを確認せず投入したためです。", pmPoint: "増員は人数ではなく、適用できる作業で評価します。", chainEffect: "急な増員が調整コストを生む" }),
+    ] },
+    { id: "replan", timing: "第3週 / 全3週", title: "回復策を再計画する", situation: "予定日、品質、チーム状態をすべて完全には守れません。顧客と回復の着地点を合意します。", thinkingPoint: "何を守り、何を変えるかを条件つきで再計画します。", visibleInformation: ["日程と品質にトレードオフ", "顧客への説明が必要"], newlyRelevantActionIds: ["sch_scope_cut", "sch_report_options"], decisions: [
+      decision({ id: "sch_push", title: "高負荷で予定日に全て出す", irreversible: true, metricEffects: { schedule: 4, quality: -7, teamHealth: -10, riskExposure: 8 }, whatHappened: "予定日は維持しましたが、品質とチーム余力を大きく消費しました。", why: "回復策の比較より、稼働時間で埋める判断をしたためです。", pmPoint: "納期達成だけでなく、継続できる状態を着地点に含めます。", chainEffect: "予定日維持の代償が後から表面化" }),
+      decision({ id: "sch_replan", title: "並行化と範囲調整で再計画する", requiresInformation: ["recovery_option", "parallel_work"], hidesWhenMissing: false, irreversible: true, metricEffects: { schedule: 4, quality: 4, teamHealth: 2, riskExposure: -4, stakeholderAlignment: 4 }, setsFlags: { replanAgreed: true }, whatHappened: "必要な導線を予定日に出し、周辺作業を後続化する計画で合意しました。", why: "事実・品質条件・顧客期限をもとに複数の打ち手を組み合わせたためです。", pmPoint: "回復は単一の正解ではなく、守る価値と変える範囲の合意です。", chainEffect: "納期・品質・チームのバランスを再計画" }),
+      decision({ id: "sch_delay", title: "品質を守るため延期する", irreversible: true, metricEffects: { schedule: -8, quality: 7, teamHealth: 3, riskExposure: -5, trust: -3 }, whatHappened: "品質確認を優先して延期を提案しました。", why: "品質事故を避けるため、日程への影響を受け入れたためです。", pmPoint: "延期も、事実と代替案を早く共有できるほど信頼を守れます。", chainEffect: "品質優先で日程を再設定" }),
+    ] },
+  ],
+  reactionRules: [{ stakeholderId: "tanaka", requiresAll: ["replanAgreed"], text: "並行化と範囲調整で、品質を守りながら進められます。" }, { stakeholderId: "tanaka", text: "回復策の条件をもっと早く共有してほしかったです。", fallback: true }, { stakeholderId: "qa", requiresAll: ["replanAgreed"], text: "譲れない品質条件を守った計画になっています。" }, { stakeholderId: "qa", text: "日程だけでなく、テスト条件も一緒に決めてください。", fallback: true }],
+  resultConfig: { scoredInformation: [{ id: "delay_cause", weight: 2, reviewHint: "遅延原因を知ると、残業以外の回復策を考えられます。" }, { id: "critical_path", weight: 2, reviewHint: "依存関係を整理して、本当のボトルネックを見つけます。" }, { id: "quality_floor", weight: 2, reviewHint: "品質下限を確認してから、日程との交換条件を判断します。" }, { id: "parallel_work", weight: 2, reviewHint: "安全に並行化できる作業を切り分けます。" }, { id: "team_capacity", weight: 1 }, { id: "customer_deadline", weight: 1 }], informationFullCreditRatio: 0.8, scoreMetrics: [{ key: "schedule", weight: 3 }, { key: "quality", weight: 2 }, { key: "teamHealth", weight: 2 }, { key: "riskExposure", weight: 2 }, { key: "trust", weight: 1 }], finalMetricKeys: ["schedule", "quality", "trust", "teamHealth", "riskExposure"], outcomeSummary: [{ label: "回復方針", rules: [{ requiresAll: ["replanAgreed"], status: "再計画済み", tone: "positive" }, { requiresAll: ["overtime"], status: "高負荷対応", tone: "warning" }], fallbackStatus: "要振り返り", fallbackTone: "warning" }, { label: "納期", metric: "schedule" }, { label: "品質", metric: "quality" }, { label: "チーム状態", metric: "teamHealth" }, { label: "リスク", metric: "riskExposure" }] },
+};
