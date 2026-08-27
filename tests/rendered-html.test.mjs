@@ -475,11 +475,13 @@ test("renders a shared, data-driven project stakeholder map", async () => {
   assert.match(types, /interface ProjectContext/);
   assert.match(types, /interface StakeholderRelationship/);
   assert.match(types, /"known" \| "unknown" \| "discovered"/);
+  assert.match(types, /currentStatusByTurn\?: Record<number, string\[]>/);
   assert.match(map, /プロジェクト関係者/);
   assert.match(map, /あなた（PM）を中心に見る/);
   assert.match(map, /人物の特性/);
   assert.match(map, /現在の状況/);
   assert.match(map, /あなたとの関係/);
+  assert.match(map, /stakeholder-relationship-list/);
   assert.match(adapter, /buildStatefulStakeholderMap/);
   assert.match(light, /<ProjectStakeholderMap/);
   assert.match(stateful, /<ProjectStakeholderMap/);
@@ -492,5 +494,6 @@ test("renders a shared, data-driven project stakeholder map", async () => {
     assert.match(project, /relationshipToPlayer:/);
   }
   assert.match(styles, /\.stakeholder-map-layout\{display:grid;grid-template-columns:/);
+  assert.match(styles, /\.stakeholder-groups:before/);
   assert.match(styles, /@media \(max-width:760px\)[\s\S]*\.stakeholder-map-layout\{display:block/);
 });
