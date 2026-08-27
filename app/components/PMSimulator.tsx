@@ -13,11 +13,12 @@ import { SimulatorIntro } from "./SimulatorIntro";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder } from "./StakeholderChatDrawer";
 import { PlayNavigationMenu } from "./PlayNavigationMenu";
 import { DecisionAnalysisTimeline } from "./DecisionAnalysisTimeline";
-import { characters } from "../data/characters";
+import { ProjectStakeholderMap } from "./ProjectStakeholderMap";
+import { characters, lightStakeholderRelationships } from "../data/characters";
 import { decisionResultCopy, learningByArea, pmActions, type PMActionDefinition } from "../data/actions";
 import { buildFeedback } from "../data/feedback";
 import { calculateScores } from "../data/scoring";
-import { projectBrief, releaseChoices, requestChoices, turns } from "../data/scenario";
+import { lightProjectContext, projectBrief, releaseChoices, requestChoices, turns } from "../data/scenario";
 import { conversationEngine } from "../lib/conversationEngine";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, getHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
@@ -88,6 +89,7 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
   const [selected, setSelected] = useState<CharacterId | null>(null);
   const [showContacts, setShowContacts] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [showStakeholderMap, setShowStakeholderMap] = useState(false);
   const [flowStep, setFlowStep] = useState<FlowStep>(() => resumedSnapshot?.flowStep ?? "situation");
   const [actionResult, setActionResult] = useState<ActionResult | null>(() => resumedSnapshot?.actionResult ?? null);
   const [executingId, setExecutingId] = useState<string | null>(null);
@@ -366,13 +368,14 @@ export default function PMSimulator({ onExit = () => {}, resumeSession }: { onEx
     <header className="simulation-header">
       <div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes.light.label}</small></div>
       <div className="time-context"><span>{turn.day}日目</span><strong>{formatTimingLabel(turn.week)}</strong><small>リリースまで {turn.remaining}日</small></div>
-      <div className="header-utilities"><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{game.logs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); onExit(save); }} /></div>
+      <div className="header-utilities"><button type="button" className="utility-button" aria-expanded={showStakeholderMap} onClick={() => setShowStakeholderMap(true)}>関係者</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{game.logs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); onExit(save); }} /></div>
     </header>
     <FlowSteps current={flowStep} />
     {flowStep === "situation" && <SituationStep turnNumber={game.turn} theme={turn.theme} title={turn.title} notice={game.turnNotice} consider={turn.consider} flags={game.flags} onDecide={() => { setFlowStep("decision"); scrollPageToTop(); }} />}
     {flowStep === "decision" && <DecisionStep title={turn.title} unknownCount={unknownCount} actionsLeft={game.actionsLeft} metrics={game.metrics} changes={recentChanges} actions={pmActions} usedIds={usedActionIds} disabled={explorationDisabled} scenarioDecision={scenarioDecision} footerMessage={footerMessage} canAdvance={canAdvance && (game.turn !== 4 || Boolean(game.releaseDecision)) && !Boolean(executingId)} finalTurn={game.turn === 4} onViewSituation={() => { setFlowStep("situation"); scrollPageToTop(); }} onSelectAction={action => { setSelectedActionId(action.id); setActionDetailOpen(true); }} onAdvance={requestAdvance} />}
     {flowStep === "result" && actionResult && <ResultStep result={actionResult} onNext={closeResult} />}
     <div id="project-log" className={"log-section " + (showLog ? "is-open" : "")} onClick={() => setShowLog(false)}><div className="log-dialog" onClick={event => event.stopPropagation()}><button className="log-close" aria-label="プロジェクトログを閉じる" onClick={() => setShowLog(false)}>閉じる ×</button><ProjectLog logs={game.logs} compact /></div></div>
+    {showStakeholderMap ? <ProjectStakeholderMap project={{ ...lightProjectContext, currentIssues: [turn.situation, ...lightProjectContext.currentIssues].slice(0, 4) }} stakeholders={characters.map(person => ({ id: person.id, name: person.name, role: person.role, priority: person.status, avatar: person.initials, group: person.group, summary: person.summary, traits: person.traits, currentStatus: person.currentStatus, relationshipToPlayer: person.relationshipToPlayer, attentionLevel: person.attentionLevel, facts: person.facts }))} relationships={lightStakeholderRelationships} onClose={() => setShowStakeholderMap(false)} /> : null}
     {showScenarioChoices && <div className="scenario-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setShowScenarioChoices(false); }}><section className="scenario-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="scenario-choice-title"><header><div><p>このターンの判断</p><h2 id="scenario-choice-title">{game.turn === 2 ? "追加要望へどう返答しますか？" : "リリース方針を選んでください"}</h2></div><button type="button" onClick={() => setShowScenarioChoices(false)}>閉じる</button></header><p>正解は一つではありません。今までに得た情報と、守りたいものから判断してください。</p><div className={"decision-choice-list " + (game.turn === 4 ? "release-list" : "")}>{(game.turn === 2 ? requestChoices : releaseChoices).map(choice => <button key={choice.id} type="button" onClick={() => prepareScenarioDecision(game.turn === 2 ? "request" : "release", choice.id)}><strong>{choice.label}</strong><span>{choice.note}</span><b>この判断を詳しく確認</b></button>)}</div></section></div>}
     {showContacts && <StakeholderContactPicker stakeholders={chatStakeholders} onSelect={id => chooseContact(id as CharacterId)} onClose={() => setShowContacts(false)} />}
     {selected && currentCharacter && <StakeholderChatDrawer stakeholder={chatStakeholders.find(person => person.id === selected)!} messages={game.chats[selected].map(message => ({ id: message.id, speaker: message.speaker === "player" ? "player" : "stakeholder", text: message.text }))} questions={currentTopics.map(topic => ({ id: topic.id, label: topic.label, disabled: game.asked.includes(topic.id), statusLabel: game.asked.includes(topic.id) ? "確認済み" : "実行前に確認" }))} actionsLeft={game.actionsLeft} disabled={explorationDisabled} helperText={decisionPending && game.actionsLeft === 1 ? "判断用アクションを確保中" : undefined} onSelectQuestion={prepareTopic} onClose={() => setSelected(null)} />}

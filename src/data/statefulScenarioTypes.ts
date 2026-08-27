@@ -7,12 +7,49 @@ export interface SimulationMetrics extends ProjectState {
   stakeholderAlignment: number;
 }
 
+export type StakeholderGroup = "customer" | "management" | "business" | "operations" | "development" | "quality" | "other";
+export type StakeholderAttentionLevel = "normal" | "notice" | "warning";
+export type StakeholderFactStatus = "known" | "unknown" | "discovered";
+export type StakeholderRelationshipType = "report" | "consult" | "request" | "coordinate" | "decision" | "escalation" | "other";
+
+export interface StakeholderFact {
+  text: string;
+  status: StakeholderFactStatus;
+}
+
+export interface ProjectContext {
+  name: string;
+  purpose: string;
+  phase: string;
+  releaseTiming?: string;
+  teamSize?: string;
+  currentIssues: string[];
+  playerRole: string;
+  playerMission?: string;
+}
+
+export interface StakeholderRelationship {
+  from: string;
+  to: string;
+  type: StakeholderRelationshipType;
+  label?: string;
+}
+
 export interface ScenarioStakeholder {
   id: string;
   name: string;
   role: string;
   priority: string;
   avatar: string;
+  group?: StakeholderGroup;
+  summary?: string;
+  traits?: string[];
+  currentStatus?: string[];
+  currentStatusByTurn?: Record<number, string[]>;
+  relationshipToPlayer?: string[];
+  attentionLevel?: StakeholderAttentionLevel;
+  facts?: StakeholderFact[];
+  factsByTurn?: Record<number, StakeholderFact[]>;
 }
 
 export interface ScenarioInformation {
@@ -171,7 +208,9 @@ export interface StatefulScenarioDefinition {
   initialMetrics: SimulationMetrics;
   initialFlags: Record<string, boolean | number | string>;
   intro: StatefulScenarioIntro;
+  projectContext?: ProjectContext;
   stakeholders: ScenarioStakeholder[];
+  stakeholderRelationships?: StakeholderRelationship[];
   information: ScenarioInformation[];
   actions: ScenarioAction[];
   actionCategories?: ScenarioActionCategory[];

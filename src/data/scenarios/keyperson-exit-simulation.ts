@@ -7,12 +7,16 @@ export const keypersonExitSimulation: StatefulScenarioDefinition = {
   initialMetrics: { schedule: 68, budget: 68, quality: 78, trust: 70, teamHealth: 64, businessValue: 74, riskExposure: 60, scopeStability: 74, stakeholderAlignment: 62 },
   initialFlags: { retainOnly: false, knowledgeMapped: false, pairingStarted: false, knowledgeDistributed: false, successorConcentrated: false, transitionAgreed: false, agreementRecorded: false, contingencyPrepared: false, customerInformed: false },
   intro: { emphasizedHeadline: "人が抜けても続く状態を作るPMです。", description: "重要領域を担うテックリードから、1か月後に離れる可能性があると相談されました。知識・判断・関係性を誰へどう移すかを判断してください。", briefTitle: "外部API連携基盤", phase: "体制変更の準備期間", team: "PM・テックリード・開発・QA・顧客", issueLabel: "現在の課題", issue: "テックリードの離脱可能性", requestLabel: "制約", request: "引き継ぎに使える期間は約1か月", risk: "設計判断と顧客経緯が一人に集中" },
+  projectContext: { name: "外部API連携基盤", purpose: "担当者が変わっても開発と顧客対応が止まらない状態をつくる", phase: "体制変更の準備期間", releaseTiming: "引き継ぎに使える期間は約1か月", teamSize: "PM・テックリード・開発・QA・顧客", currentIssues: ["テックリードの離脱可能性", "設計判断と顧客経緯の集中", "引き継ぎ期間が限られている"], playerRole: "プロジェクトマネージャー", playerMission: "知識・判断・関係性を分散し、継続できる体制を合意する" },
   stakeholders: [
-    { id: "tanaka", name: "田中", role: "離脱予定のテックリード", priority: "責任を持って知識を残したい", avatar: "田" },
-    { id: "kato", name: "加藤", role: "後任候補のエンジニア", priority: "無理なく実務を引き継ぎたい", avatar: "加" },
-    { id: "suzuki", name: "鈴木", role: "開発メンバー", priority: "日常の判断を止めずに進めたい", avatar: "鈴" },
-    { id: "sato", name: "佐藤", role: "顧客担当者", priority: "担当交代後も対応が止まらないこと", avatar: "佐" },
-    { id: "ito", name: "伊藤", role: "部門責任者", priority: "継続可能な体制とリスク低減", avatar: "伊" },
+    { id: "tanaka", name: "田中", role: "離脱予定のテックリード", priority: "責任を持って知識を残したい", avatar: "田", group: "development", summary: "外部APIの設計判断と顧客経緯を担うテックリード", traits: ["技術判断に詳しい", "責任感が強い"], currentStatus: ["1か月後の離脱可能性を相談している"], relationshipToPlayer: ["知識移転と離脱時期を相談する"], attentionLevel: "warning", facts: [{ text: "外部API連携を中心に担当している", status: "known" }] },
+    { id: "kato", name: "加藤", role: "後任候補のエンジニア", priority: "無理なく実務を引き継ぎたい", avatar: "加", group: "development", summary: "田中からの知識移転を受ける後任候補", traits: ["画面・テスト連携に対応できる", "実務での確認を重視する"], currentStatus: ["担当可能な範囲を見極めている"], relationshipToPlayer: ["移転範囲と支援条件を調整する"], attentionLevel: "notice", facts: [{ text: "後任候補として検討されている", status: "known" }] },
+    { id: "suzuki", name: "鈴木", role: "開発メンバー", priority: "日常の判断を止めずに進めたい", avatar: "鈴", group: "development", summary: "日常の開発作業と障害対応を担うメンバー", traits: ["現場の依存関係を知る", "日常の判断を重視する"], currentStatus: ["田中への確認が必要な作業を抱えている"], relationshipToPlayer: ["作業依存と負荷を確認する"], attentionLevel: "normal", facts: [{ text: "開発チームのメンバーである", status: "known" }] },
+    { id: "sato", name: "佐藤", role: "顧客担当者", priority: "担当交代後も対応が止まらないこと", avatar: "佐", group: "customer", summary: "顧客側の継続性を確認する窓口", traits: ["業務継続を重視する", "顧客の懸念を伝える"], currentStatus: ["担当交代後の連絡先と対応継続を気にしている"], relationshipToPlayer: ["体制変更と顧客影響を共有する"], attentionLevel: "notice", facts: [{ text: "顧客側の担当窓口である", status: "known" }] },
+    { id: "ito", name: "伊藤", role: "部門責任者", priority: "継続可能な体制とリスク低減", avatar: "伊", group: "management", summary: "継続可能な体制と支援を判断する部門責任者", traits: ["組織全体を見渡す", "リスク低減を重視する"], currentStatus: ["引き継ぎに必要な支援条件を見極めている"], relationshipToPlayer: ["支援体制とリスクを相談する"], attentionLevel: "normal", facts: [{ text: "部門の体制支援を判断する責任者である", status: "known" }] },
+  ],
+  stakeholderRelationships: [
+    { from: "pm", to: "tanaka", type: "consult", label: "知識と離脱時期を確認" }, { from: "pm", to: "kato", type: "coordinate", label: "後任への移転を調整" }, { from: "pm", to: "suzuki", type: "consult", label: "依存と負荷を確認" }, { from: "pm", to: "sato", type: "report", label: "体制変更を説明" }, { from: "pm", to: "ito", type: "escalation", label: "支援体制を相談" },
   ], actionCategories: statefulActionCategories,
   information: [
     { id: "exit_timing", label: "離脱時期", detail: "離脱は1か月後を目安に進む可能性が高く、引き継ぎ時間は限られる。", source: "田中へのヒアリング" },

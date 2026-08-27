@@ -1,3 +1,5 @@
+import type { ProjectContext } from "@/src/data/statefulScenarioTypes";
+
 export const projectBrief = {
   title: "顧客ポータル 検索機能アップデート",
   purpose: "既存顧客が契約情報をすばやく探せる新しい検索体験を届ける",
@@ -6,6 +8,17 @@ export const projectBrief = {
   requirements: "複数条件検索、検索結果一覧、CSV出力（詳細は一部未確定）",
   customer: "「競合対策のため、納期は必ず守ってください」",
   risk: "外部APIを利用予定。接続方法と確定時期は未確認",
+};
+
+export const lightProjectContext: ProjectContext = {
+  name: projectBrief.title,
+  purpose: projectBrief.purpose,
+  phase: "開発・リリース準備",
+  releaseTiming: projectBrief.release,
+  teamSize: projectBrief.team,
+  currentIssues: ["追加要望の優先順位が未確定", "外部APIの接続方法と確定時期が未確認", "納期・品質・チーム負荷の調整が必要"],
+  playerRole: "プロジェクトマネージャー",
+  playerMission: "必要な情報を集め、顧客価値・納期・品質・チームの着地点を作る",
 };
 
 export const turns = [

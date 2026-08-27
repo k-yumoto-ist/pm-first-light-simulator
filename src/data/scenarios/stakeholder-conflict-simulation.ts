@@ -7,12 +7,16 @@ export const stakeholderConflictSimulation: StatefulScenarioDefinition = {
   initialMetrics: { schedule: 64, budget: 72, quality: 70, trust: 48, teamHealth: 68, businessValue: 64, riskExposure: 52, scopeStability: 70, stakeholderAlignment: 36 },
   initialFlags: { oneSidedChoice: false, majorityDecision: false, decisionOwnerKnown: false, optionsPrepared: false, agreementRecorded: false, conditionalRollout: false, finalAgreement: false },
   intro: { emphasizedHeadline: "異なる目的を意思決定へ変えるPMです。", description: "営業は早期公開、運用は安定性、情シスは管理負荷の削減を求めています。誰に何を聞き、どの条件で合意を作るかを判断してください。", briefTitle: "顧客向け新機能導入", phase: "導入方針の最終調整", team: "PM・営業・運用・情シス・開発・顧客", issueLabel: "現在の課題", issue: "関係者間の導入方針の対立", requestLabel: "対立している要望", request: "早期公開・安定性・管理負荷削減", risk: "成功条件と判断者が未確定" },
+  projectContext: { name: "顧客向け新機能導入", purpose: "異なる部門の目的を整理し、安全に新機能を導入する", phase: "導入方針の最終調整", releaseTiming: "今週中に導入方針を決定", teamSize: "PM・営業・運用・情シス・開発・顧客", currentIssues: ["関係者間の導入方針の対立", "成功条件が未確定", "最終判断者が曖昧"], playerRole: "プロジェクトマネージャー", playerMission: "目的・制約・判断権限を整理し、実行可能な合意をつくる" },
   stakeholders: [
-    { id: "mori", name: "森", role: "営業責任者", priority: "期末までの利用開始数を増やしたい", avatar: "森" },
-    { id: "nakamura", name: "中村", role: "運用責任者", priority: "障害と切り戻し不能な状態を避けたい", avatar: "中" },
-    { id: "kobayashi", name: "小林", role: "情シス責任者", priority: "管理工数と例外対応を増やしたくない", avatar: "小" },
-    { id: "takahashi", name: "高橋", role: "事業責任者", priority: "事業価値とリスクの着地点を決めたい", avatar: "高" },
-    { id: "suzuki", name: "鈴木", role: "開発担当", priority: "技術的に安全な導入単位を作りたい", avatar: "鈴" },
+    { id: "mori", name: "森", role: "営業責任者", priority: "期末までの利用開始数を増やしたい", avatar: "森", group: "business", summary: "利用開始の成果と顧客への説明を担う営業責任者", traits: ["事業成果を重視する", "顧客への説明を急ぐ"], currentStatus: ["期末までの利用開始数を気にしている"], relationshipToPlayer: ["営業上の目的と調整幅を相談する"], attentionLevel: "notice", facts: [{ text: "顧客向け営業を担当する", status: "known" }] },
+    { id: "nakamura", name: "中村", role: "運用責任者", priority: "障害と切り戻し不能な状態を避けたい", avatar: "中", group: "operations", summary: "導入後の安定運用と切り戻しを担う責任者", traits: ["安定性を重視する", "障害対応を慎重に見る"], currentStatus: ["導入後の障害と切り戻しを懸念している"], relationshipToPlayer: ["運用条件と安全策を相談する"], attentionLevel: "warning", facts: [{ text: "導入後の運用を担当する", status: "known" }] },
+    { id: "kobayashi", name: "小林", role: "情シス責任者", priority: "管理工数と例外対応を増やしたくない", avatar: "小", group: "operations", summary: "アカウントや問い合わせの管理を担う情シス責任者", traits: ["管理負荷を重視する", "例外対応を減らしたい"], currentStatus: ["導入後の管理工数を懸念している"], relationshipToPlayer: ["管理条件と窓口を調整する"], attentionLevel: "notice", facts: [{ text: "情シスの運用管理を担う", status: "known" }] },
+    { id: "takahashi", name: "高橋", role: "事業責任者", priority: "事業価値とリスクの着地点を決めたい", avatar: "高", group: "management", summary: "導入方針の最終判断を担う事業責任者", traits: ["事業価値とリスクを比較する", "最終判断を担う"], currentStatus: ["複数部門の条件を比較しようとしている"], relationshipToPlayer: ["判断基準と導入方針を合意する"], attentionLevel: "normal", facts: [{ text: "導入方針の最終判断を担う", status: "known" }] },
+    { id: "suzuki", name: "鈴木", role: "開発担当", priority: "技術的に安全な導入単位を作りたい", avatar: "鈴", group: "development", summary: "導入単位と技術的な安全策を確認する開発担当", traits: ["技術的な実現性を見る", "安全な導入単位を考える"], currentStatus: ["段階導入の技術的な可能性を確認している"], relationshipToPlayer: ["技術的な選択肢を相談する"], attentionLevel: "normal", facts: [{ text: "新機能の開発を担当する", status: "known" }] },
+  ],
+  stakeholderRelationships: [
+    { from: "pm", to: "mori", type: "consult", label: "営業の目的を確認" }, { from: "pm", to: "nakamura", type: "consult", label: "運用条件を確認" }, { from: "pm", to: "kobayashi", type: "consult", label: "管理負荷を確認" }, { from: "pm", to: "takahashi", type: "decision", label: "導入方針を合意" }, { from: "pm", to: "suzuki", type: "consult", label: "技術的な導入単位を相談" },
   ], actionCategories: statefulActionCategories,
   information: [
     { id: "sales_goal", label: "営業が守りたい成果", detail: "早期公開そのものより、期末までの利用開始数を重視している。", source: "森へのヒアリング" },

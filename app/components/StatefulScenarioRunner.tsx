@@ -14,6 +14,7 @@ import { ActionDetailModal } from "./ActionDetailModal";
 import { FinalResultFramework, FinalResultSection, type OutcomeSummaryItem, type PMStyle } from "./FinalResultFramework";
 import { FlowSteps } from "./FlowSteps";
 import { ProjectLog } from "./ProjectLog";
+import { ProjectStakeholderMap } from "./ProjectStakeholderMap";
 import { ResultStep } from "./ResultStep";
 import ScenarioActionExplorer from "./ScenarioActionExplorer";
 import { SimulatorCockpit } from "./SimulatorCockpit";
@@ -22,6 +23,7 @@ import { SituationStep } from "./SituationStep";
 import { StakeholderChatDrawer, StakeholderContactPicker, type ChatStakeholder, type StakeholderChatMessage } from "./StakeholderChatDrawer";
 import { modeThemes } from "../data/modeThemes";
 import { formatTimingLabel, formatTurnLabel, getMetricDisplayValue, getMetricHealthStatus, getMetricStatusLabel, healthStatusTones, metricLabels } from "../data/uiLabels";
+import { buildStatefulStakeholderMap } from "../lib/stakeholderMap";
 import { calculateInformationScore, calculateOutcomeScore, getScenarioActionUsageKey, hasScenarioActionBeenUsed, isScenarioActionComplete, resolveScenarioActionOutcome } from "@/src/data/statefulScenarioLogic.mjs";
 import { PlayNavigationMenu } from "./PlayNavigationMenu";
 import { DecisionAnalysisTimeline } from "./DecisionAnalysisTimeline";
@@ -128,6 +130,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   const [showLog, setShowLog] = useState(false);
   const [showInformation, setShowInformation] = useState(false);
   const [showProjectDetails, setShowProjectDetails] = useState(false);
+  const [showStakeholderMap, setShowStakeholderMap] = useState(false);
   const [history, setHistory] = useState<StatefulSnapshot[]>(() => resumedHistory);
   const [activeSaveId, setActiveSaveId] = useState<string | undefined>(() => resumeSession?.id);
 
@@ -149,6 +152,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
     return Boolean(saved);
   };
   const turn = scenario.turns[turnIndex];
+  const stakeholderMap = useMemo(() => buildStatefulStakeholderMap(scenario, turn?.situation, turnIndex + 1), [scenario, turn?.situation, turnIndex]);
   const informationSet = useMemo(() => new Set(informationIds), [informationIds]);
   const turnActions = scenario.actions.filter(action => action.availableFromTurn <= turnIndex + 1);
   const relevantActionIds = useMemo(() => new Set(turn.newlyRelevantActionIds ?? turn.actionIds ?? []), [turn]);
@@ -265,7 +269,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
   const situationUnknown = difficulty === "guided" ? unknownInformation.map(info => ({ id: info.id, label: info.label })) : unknownInformation.length ? [{ id: "unconfirmed", label: "判断前に確認したい事項が残っています" }] : [];
   const openDecision = () => { if (visibleDecisions[0]) setSelectedDecision(visibleDecisions[0]); };
   const requiredDecision = <button type="button" className="scenario-decision-trigger step-scenario-decision" onClick={openDecision} disabled={!visibleDecisions.length}><span>今回の必須判断</span><strong>{turn.decisionLabel ?? `${turn.title}への対応方針`}</strong><small>未決定 — 判断する</small></button>;
-  const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes[scenario.mode].label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); onExitToHome(save); }} /></div></header>;
+  const simulationHeader = <header className="simulation-header"><div className="brand compact"><span className="brand-mark">PM</span><span>PROJECT: FIRST LIGHT</span><small className="mode-badge">{modeThemes[scenario.mode].label}</small></div><div className="time-context"><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><strong>{formatTimingLabel(turn.timing)}</strong><small>{scenario.title}</small></div><div className="header-utilities"><button type="button" className="utility-button" onClick={() => setShowInformation(true)}>判断材料 <b>{informationIds.length}</b></button><button type="button" className="utility-button" aria-expanded={showStakeholderMap} onClick={() => setShowStakeholderMap(true)}>関係者</button><button type="button" className="utility-button" onClick={() => setShowProjectDetails(true)}>プロジェクト詳細</button><button className="log-jump" aria-expanded={showLog} onClick={() => setShowLog(true)}>プロジェクトログ <b>{projectLogs.length}</b></button><PlayNavigationMenu canUndo={history.length > 0} onSave={savePlay} onUndo={undo} onRestart={restart} onExit={save => { if (save) savePlay(); onExitToHome(save); }} /></div></header>;
 
   return <main className="simulation-shell stateful-canonical-shell">
     {simulationHeader}
@@ -274,6 +278,7 @@ export default function StatefulScenarioRunner({ scenario, difficulty, onExit, o
     {phase === "cockpit" ? <SimulatorCockpit title={turn.title} contextMeta={<><span>{formatTurnLabel(turnIndex + 1, scenario.turns.length)}</span><small>{formatTimingLabel(turn.timing)}</small></>} onViewSituation={() => setPhase("situation")} metrics={cockpitMetrics} changes={[]} kicker="PMアクション" prompt="PMとして、次に何をしますか？" budget={budget} scenarioDecision={requiredDecision} actions={pmActions} usedIds={Object.keys(actionUsageCounts) as ScenarioActionCategoryId[]} usageCounts={actionUsageCounts} disabled={investigationsLeft <= 0} onSelectAction={action => { setSelectedCategoryAction(action); setActionDetailOpen(true); }} footerMessage={footerMessage} advanceLabel="このターンの判断をする" canAdvance={visibleDecisions.length > 0} onAdvance={openDecision} /> : null}
     {phase === "result" && resultDialog ? <ResultStep result={resultDialog.result} nextLabel={resultDialog.advancesTurn ? (turnIndex === scenario.turns.length - 1 ? "一連の判断を振り返る" : "次の状況へ") : "次の判断へ"} onNext={resultDialog.advancesTurn ? advanceTurn : () => { setResultDialog(undefined); setPhase("cockpit"); }} /> : null}
     <div className={`log-section ${showLog ? "is-open" : ""}`} onClick={() => setShowLog(false)}><div className="log-dialog" onClick={event => event.stopPropagation()}><button className="log-close" aria-label="プロジェクトログを閉じる" onClick={() => setShowLog(false)}>閉じる ×</button><ProjectLog logs={projectLogs} compact /></div></div>
+    {showStakeholderMap ? <ProjectStakeholderMap project={stakeholderMap.projectContext} stakeholders={stakeholderMap.stakeholders} relationships={stakeholderMap.relationships} onClose={() => setShowStakeholderMap(false)} /> : null}
     {pickerCategory && selectedCategory && pickerCategory !== "hearing" ? <AccessibleDialog onClose={() => setPickerCategory(undefined)} labelledBy="scenario-action-picker-title" overlayClassName="action-detail-overlay" dialogClassName="action-detail-dialog scenario-action-picker-dialog"><header><div><p>PMアクション</p><h2 id="scenario-action-picker-title">{selectedCategory.label}</h2></div><button type="button" aria-label="具体的な行動選択を閉じる" onClick={() => setPickerCategory(undefined)}>×</button></header><ScenarioActionExplorer key={`${turn.id}-${pickerCategory}`} categories={scenario.actionCategories ?? []} actions={turnActions.filter(action => action.category !== "hearing")} stakeholders={scenario.stakeholders} difficulty={difficulty} relevantActionIds={relevantActionIds} getAvailability={getActionAvailability} onSelect={action => { setPickerCategory(undefined); setConfirmingAction(action); }} initialCategoryId={pickerCategory} allowCategoryReset={false} /></AccessibleDialog> : null}
     {actionDetailOpen && selectedCategoryAction ? <ActionDetailModal action={selectedCategoryAction} actionsLeft={investigationsLeft} disabled={investigationsLeft <= 0} onClose={() => { setActionDetailOpen(false); setSelectedCategoryAction(undefined); }} onExecute={() => { const category = selectedCategoryAction.id; setActionDetailOpen(false); setSelectedCategoryAction(undefined); if (category === "hearing") setShowContacts(true); else setPickerCategory(category); }} /> : null}
     {showContacts ? <StakeholderContactPicker stakeholders={chatStakeholders} onSelect={id => { setShowContacts(false); setSelectedStakeholderId(id); }} onClose={() => setShowContacts(false)} /> : null}

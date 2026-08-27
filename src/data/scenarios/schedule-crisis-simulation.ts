@@ -10,12 +10,16 @@ export const scheduleCrisisSimulation: StatefulScenarioDefinition = {
   initialMetrics: { schedule: 42, budget: 70, quality: 74, trust: 62, teamHealth: 66, businessValue: 70, riskExposure: 56, scopeStability: 76, stakeholderAlignment: 56 },
   initialFlags: { criticalPathKnown: false, recoveryPlanned: false, overtimePromised: false, resourceShifted: false, scopeAdjusted: false, phasedRelease: false, releaseDelayed: false, finalAgreement: false, optionsShared: false, customerInformed: false },
   intro: { emphasizedHeadline: "遅延から回復の道筋を作るPMです。", description: "リリースまで3週間。API連携がクリティカルパス上で5営業日遅れています。誰に何を聞き、何を守って回復するかを判断してください。", briefTitle: "顧客ポータル連携", phase: "リリース3週間前", team: "PM・開発・QA・営業・顧客", issueLabel: "現在の課題", issue: "API連携の5営業日遅延", requestLabel: "顧客側の制約", request: "展示会前の利用開始", risk: "テスト開始と品質判定への波及" },
+  projectContext: { name: "顧客ポータル連携", purpose: "展示会前に顧客が安全に利用を開始できる状態をつくる", phase: "リリース3週間前", releaseTiming: "リリースまで3週間", teamSize: "PM・開発・QA・営業・顧客", currentIssues: ["API連携が5営業日遅延", "総合テスト開始条件が未達", "納期と品質の両立が必要"], playerRole: "プロジェクトマネージャー", playerMission: "遅延の構造を把握し、守るものと変えるものを合意する" },
   stakeholders: [
-    { id: "tanaka", name: "田中", role: "開発リーダー", priority: "技術的な回復と品質を守りたい", avatar: "田" },
-    { id: "qa", name: "山本", role: "QAリーダー", priority: "安全なテストとリリース判定を守りたい", avatar: "山" },
-    { id: "mori", name: "森", role: "営業責任者", priority: "顧客との約束と関係を守りたい", avatar: "森" },
-    { id: "sato", name: "佐藤", role: "顧客担当者", priority: "展示会前の利用開始を実現したい", avatar: "佐" },
-    { id: "takahashi", name: "高橋", role: "顧客決裁者", priority: "事業価値と品質条件を両立したい", avatar: "高" },
+    { id: "tanaka", name: "田中", role: "開発リーダー", priority: "技術的な回復と品質を守りたい", avatar: "田", group: "development", summary: "API連携の技術判断と開発チームを担う", traits: ["技術的な回復を重視する", "品質条件を守る"], currentStatus: ["遅延したAPI連携の対応にあたっている"], relationshipToPlayer: ["遅延原因と回復策を相談する"], attentionLevel: "warning", facts: [{ text: "API連携の開発責任者である", status: "known" }] },
+    { id: "qa", name: "山本", role: "QAリーダー", priority: "安全なテストとリリース判定を守りたい", avatar: "山", group: "quality", summary: "テスト条件と品質判定を担う責任者", traits: ["品質を重視する", "安全な判定を行う"], currentStatus: ["テスト開始条件を確認している"], relationshipToPlayer: ["品質条件とテスト計画を相談する"], attentionLevel: "notice", facts: [{ text: "QAチームを率いている", status: "known" }] },
+    { id: "mori", name: "森", role: "営業責任者", priority: "顧客との約束と関係を守りたい", avatar: "森", group: "business", summary: "顧客との約束と関係を支える営業責任者", traits: ["顧客関係を重視する", "約束への影響を見る"], currentStatus: ["展示会前の利用開始を気にしている"], relationshipToPlayer: ["顧客への説明方針を調整する"], attentionLevel: "notice", facts: [{ text: "顧客との関係を担当する", status: "known" }] },
+    { id: "sato", name: "佐藤", role: "顧客担当者", priority: "展示会前の利用開始を実現したい", avatar: "佐", group: "customer", summary: "顧客側の利用開始要望を伝える窓口", traits: ["利用開始時期を重視する", "顧客要望を取りまとめる"], currentStatus: ["展示会前の利用開始を期待している"], relationshipToPlayer: ["顧客側の期限と調整幅を確認する"], attentionLevel: "notice", facts: [{ text: "顧客側の担当窓口である", status: "known" }] },
+    { id: "takahashi", name: "高橋", role: "顧客決裁者", priority: "事業価値と品質条件を両立したい", avatar: "高", group: "management", summary: "納期・価値・品質の最終判断を担う顧客責任者", traits: ["事業価値を重視する", "品質条件を確認する"], currentStatus: ["回復策の判断を控えている"], relationshipToPlayer: ["リリース方針を合意する"], attentionLevel: "normal", facts: [{ text: "顧客側の最終判断者である", status: "known" }] },
+  ],
+  stakeholderRelationships: [
+    { from: "pm", to: "tanaka", type: "consult", label: "遅延・技術影響を相談" }, { from: "pm", to: "qa", type: "consult", label: "品質条件を確認" }, { from: "pm", to: "mori", type: "coordinate", label: "顧客説明を調整" }, { from: "pm", to: "sato", type: "request", label: "顧客の期限を確認" }, { from: "pm", to: "takahashi", type: "decision", label: "回復方針を合意" },
   ], actionCategories: statefulActionCategories,
   information: [
     { id: "delay_cause", label: "遅延原因", detail: "外部API仕様の差分確認と認証試験のやり直しが遅延の主因。", source: "田中へのヒアリング" },

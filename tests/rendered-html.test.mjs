@@ -456,3 +456,41 @@ test("uses shared Japanese labels and health statuses in player-facing UI", asyn
   assert.match(result, /結果サマリー/);
   assert.match(result, /あなたの判断スタイル/);
 });
+
+test("renders a shared, data-driven project stakeholder map", async () => {
+  const [types, map, adapter, light, stateful, characters, scenario, scope, schedule, keyperson, conflict, styles] = await Promise.all([
+    readFile(new URL("src/data/statefulScenarioTypes.ts", root), "utf8"),
+    readFile(new URL("app/components/ProjectStakeholderMap.tsx", root), "utf8"),
+    readFile(new URL("app/lib/stakeholderMap.ts", root), "utf8"),
+    readFile(new URL("app/components/PMSimulator.tsx", root), "utf8"),
+    readFile(new URL("app/components/StatefulScenarioRunner.tsx", root), "utf8"),
+    readFile(new URL("app/data/characters.ts", root), "utf8"),
+    readFile(new URL("app/data/scenario.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/scope-change-simulation.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/schedule-crisis-simulation.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/keyperson-exit-simulation.ts", root), "utf8"),
+    readFile(new URL("src/data/scenarios/stakeholder-conflict-simulation.ts", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(types, /interface ProjectContext/);
+  assert.match(types, /interface StakeholderRelationship/);
+  assert.match(types, /"known" \| "unknown" \| "discovered"/);
+  assert.match(map, /プロジェクト関係者/);
+  assert.match(map, /あなた（PM）を中心に見る/);
+  assert.match(map, /人物の特性/);
+  assert.match(map, /現在の状況/);
+  assert.match(map, /あなたとの関係/);
+  assert.match(adapter, /buildStatefulStakeholderMap/);
+  assert.match(light, /<ProjectStakeholderMap/);
+  assert.match(stateful, /<ProjectStakeholderMap/);
+  assert.match(characters, /lightStakeholderRelationships/);
+  assert.match(scenario, /lightProjectContext/);
+  for (const project of [scope, schedule, keyperson, conflict]) {
+    assert.match(project, /projectContext:/);
+    assert.match(project, /stakeholderRelationships:/);
+    assert.match(project, /currentStatus:/);
+    assert.match(project, /relationshipToPlayer:/);
+  }
+  assert.match(styles, /\.stakeholder-map-layout\{display:grid;grid-template-columns:/);
+  assert.match(styles, /@media \(max-width:760px\)[\s\S]*\.stakeholder-map-layout\{display:block/);
+});
