@@ -481,6 +481,10 @@ test("renders a shared, data-driven project stakeholder map", async () => {
   assert.match(map, /人物の特性/);
   assert.match(map, /現在の状況/);
   assert.match(map, /あなたとの関係/);
+  assert.match(map, /関係者を選択してください/);
+  assert.match(map, /stakeholder-edge-layer/);
+  assert.match(map, /ResizeObserver/);
+  assert.match(map, /renderedEdges\.map/);
   assert.match(map, /stakeholder-relationship-list/);
   assert.match(adapter, /buildStatefulStakeholderMap/);
   assert.match(light, /<ProjectStakeholderMap/);
@@ -494,6 +498,9 @@ test("renders a shared, data-driven project stakeholder map", async () => {
     assert.match(project, /relationshipToPlayer:/);
   }
   assert.match(styles, /\.stakeholder-map-layout\{display:grid;grid-template-columns:/);
-  assert.match(styles, /\.stakeholder-groups:before/);
+  assert.match(styles, /\.player-node\{position:absolute;top:49%;left:50%/);
+  assert.match(styles, /\.stakeholder-edge\{/);
+  assert.doesNotMatch(styles, /\.stakeholder-groups:before|\.stakeholder-groups:after|\.stakeholder-group:before/);
   assert.match(styles, /@media \(max-width:760px\)[\s\S]*\.stakeholder-map-layout\{display:block/);
+  assert.match(styles, /@media \(max-width:760px\)[\s\S]*\.stakeholder-edge-layer,\.map-group-label\{display:none/);
 });
