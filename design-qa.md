@@ -65,6 +65,48 @@ final result: passed
 
 ---
 
+## PM-centered stakeholder map update
+
+**Comparison Target**
+
+- source visual truth: `docs/qa/stakeholder-map-reference-1280x720.jpg` (the user's illustrative relationship-map reference)
+- implementation screenshot: `docs/qa/stakeholder-map-implementation-1280x720.png`
+- combined comparison evidence: `docs/qa/stakeholder-map-comparison-2560x760.png`
+- viewport: 1280 x 720 CSS px, device scale 1
+- state: PROJECT / scope-change / Turn 1, with Sato selected for the like-for-like detail-panel comparison
+
+**Full-view Comparison Evidence**
+
+The combined image puts the supplied reference and the deployed implementation in one comparison surface. The implementation preserves the existing FIRST LIGHT typography, cream surfaces, coral PROJECT accent, and scenario data while adopting the reference's PM-centered spatial model. The PM node sits at the visual center, five people surround it, and each relationship connects directly to the PM with an adjacent label.
+
+**Required Fidelity Surfaces**
+
+- Information hierarchy: project context remains left, the relationship map is the dominant center surface, and person detail remains right. The center receives roughly three fifths of the available desktop width.
+- Relationship model: group containers and tree trunks are removed. Group names are quiet spatial labels; people are the primary nodes.
+- Relationship encoding: reporting/linkage uses solid lines, consultation/coordination uses dotted lines, and requests/expectations use dashed lines. Labels stay horizontal and do not overlap the PM node.
+- Person cards: each map card is limited to an initial avatar, name, role, one short trait, and a small attention dot. Longer context remains in the detail panel.
+- Detail behavior: no person is selected when the dialog opens. The empty panel explains how to inspect a person; a click applies the selection accent and fills the existing detail sections.
+- Responsive behavior: at 390 x 844 the relationship lines and floating group labels collapse into a PM-first vertical card list with relation summaries. Browser measurements reported `scrollWidth` below `innerWidth`, so no horizontal scroll is required.
+- Accessibility: relation meaning is not color-only, every person remains a button, attention dots have accessible labels, and the dialog/close semantics are preserved.
+
+**Findings and Iteration History**
+
+1. Earlier P1: grouped cards and CSS tree trunks read as an organization chart. Fix: replaced them with absolute PM-centered placements and direct data-driven relationships.
+2. Earlier P1: the map opened with an automatically selected person, making the right panel compete with the map before user intent. Fix: removed automatic selection and introduced a neutral empty-detail state.
+3. Earlier P2: central cards carried role, trait, relation, and large attention badges. Fix: moved relation labels to the line, reduced attention to a dot, and kept only one trait on each card.
+4. Earlier P2: the map had little room because three columns were nearly equal. Fix: changed the desktop balance to approximately 17 / 63 / 20 within the dialog.
+5. Mobile review: the 390 px capture showed a PM-first vertical sequence, tap-sized cards, readable relation summaries, and no horizontal overflow.
+
+**Validation**
+
+- Browser-checked initial empty detail, person selection, five PM-to-person relationships, readable labels, and central map fit at 1280 x 720.
+- Browser-checked the 390 x 844 responsive state and person selection.
+- `node --test tests/rendered-html.test.mjs`, `npx tsc --noEmit`, `npm run lint`, and `npm run build` passed.
+
+final result: passed
+
+---
+
 ## Result readability update
 
 **Comparison Target**
